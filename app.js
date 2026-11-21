@@ -213,6 +213,9 @@ if (typeof document !== "undefined") {
     const t = (e.title || "").trim();
     return e.kind === "work" && (t === "小林" || t === "渡部");
   }
+  function isDayOff(e) {
+    return e.kind === "work" && (e.workType || "").trim() === "休み";
+  }
   function monthLabel(e) {
     if (isNameOnlyWork(e)) {
       const memo1 = (e.memo || "").split("\n")[0].trim();
@@ -252,7 +255,7 @@ if (typeof document !== "undefined") {
       const ymd = y + "-" + String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0");
       const es = entriesOn(ymd);
       let lines = "";
-      es.slice(0, 2).forEach(e => { lines += '<span class="ttl ' + e.kind + '">' + esc(monthLabel(e)) + "</span>"; });
+      es.slice(0, 2).forEach(e => { lines += '<span class="' + (isDayOff(e) ? "ttl off" : "ttl " + e.kind) + '">' + esc(monthLabel(e)) + "</span>"; });
       if (es.length > 2) lines += '<span class="ttl more">他' + (es.length - 2) + "件</span>";
       const wd = (startDay + d - 1) % 7;
       const dcls = wd === 0 ? " sun" : wd === 6 ? " sat" : "";
@@ -280,7 +283,7 @@ if (typeof document !== "undefined") {
     } else {
       html += es.map(e => {
         const time = e.startTime ? e.startTime + (e.endTime ? "〜" + e.endTime : "〜") : "時間なし";
-        return '<button class="hrow ' + e.kind + '"><span class="htime">' + esc(time) + '</span><span class="hname">' + esc(monthLabel(e)) + '</span><span class="hkind">' + (e.kind === "work" ? "仕事" : "個人") + "</span></button>";
+        return '<button class="hrow ' + e.kind + (isDayOff(e) ? " off" : "") + '"><span class="htime">' + esc(time) + '</span><span class="hname">' + esc(monthLabel(e)) + '</span><span class="hkind">' + (isDayOff(e) ? "休み" : (e.kind === "work" ? "仕事" : "個人")) + "</span></button>";
       }).join("");
     }
     box.innerHTML = html;
@@ -312,8 +315,8 @@ if (typeof document !== "undefined") {
       const memo = e.memo ? '<div class="memo">' + esc(e.memo).replace(/\n/g, "<br>") + "</div>" : "";
       const edit = '<button class="mini" data-edit="' + e.id + '">直す</button>' +
         (e.source === "csv" ? '<span class="tag">CSV</span>' : "");
-      return '<div class="card ' + e.kind + '"><div class="cardhead"><span class="time">' + esc(time) + "</span>" +
-        '<span class="kind">' + (e.kind === "work" ? "仕事" : "個人") + "</span>" + edit + "</div>" +
+      return '<div class="card ' + e.kind + (isDayOff(e) ? " off" : "") + '"><div class="cardhead"><span class="time">' + esc(time) + "</span>" +
+        '<span class="kind">' + (isDayOff(e) ? "休み" : (e.kind === "work" ? "仕事" : "個人")) + "</span>" + edit + "</div>" +
         '<div class="title">' + esc(dayTitle(e)) + "</div>" + span + memo + "</div>";
     }).join("");
     box.querySelectorAll("[data-edit]").forEach(b => b.addEventListener("click", () => openForm(b.getAttribute("data-edit"))));
