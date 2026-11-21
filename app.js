@@ -208,6 +208,22 @@ if (typeof document !== "undefined") {
   function entriesOn(ymd) {
     return allEntries().filter(e => occursOn(e, ymd)).sort((a, b) => (a.startTime || "99") < (b.startTime || "99") ? -1 : 1);
   }
+  // 予定詳細が担当名（小林／渡部）だけの仕事行は、名前では内容が分からないため種別で表示する。
+  function isNameOnlyWork(e) {
+    const t = (e.title || "").trim();
+    return e.kind === "work" && (t === "小林" || t === "渡部");
+  }
+  function monthLabel(e) {
+    if (isNameOnlyWork(e)) {
+      const memo1 = (e.memo || "").split("\n")[0].trim();
+      return memo1 ? (e.workType + "：" + memo1) : (e.workType || e.title);
+    }
+    return (e.title || "").trim() || e.workType || "";
+  }
+  function dayTitle(e) {
+    if (isNameOnlyWork(e)) return e.workType || e.title;
+    return (e.title || "").trim() || e.workType || "";
+  }
   function uid() { return "e" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
   function esc(s) { return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
@@ -232,9 +248,11 @@ if (typeof document !== "undefined") {
       const ymd = y + "-" + String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0");
       const es = entriesOn(ymd);
       let lines = "";
-      es.slice(0, 2).forEach(e => { lines += '<span class="ttl ' + e.kind + '">' + esc(e.title) + "</span>"; });
+      es.slice(0, 2).forEach(e => { lines += '<span class="ttl ' + e.kind + '">' + esc(monthLabel(e)) + "</span>"; });
       if (es.length > 2) lines += '<span class="ttl more">他' + (es.length - 2) + "件</span>";
-      html += '<button class="cell' + (ymd === today ? " today" : "") + '" data-date="' + ymd + '"><span class="dnum">' + d + "</span>" + lines + "</button>";
+      const wd = (startDay + d - 1) % 7;
+      const dcls = wd === 0 ? " sun" : wd === 6 ? " sat" : "";
+      html += '<button class="cell' + (ymd === today ? " today" : "") + '" data-date="' + ymd + '"><span class="dnum' + dcls + '">' + d + "</span>" + lines + "</button>";
     }
     html += "</div>";
     document.getElementById("calendar").innerHTML = html;
@@ -270,7 +288,7 @@ if (typeof document !== "undefined") {
         '<button class="mini" data-edit="' + e.id + '">直す</button>';
       return '<div class="card ' + e.kind + '"><div class="cardhead"><span class="time">' + esc(time) + "</span>" +
         '<span class="kind">' + (e.kind === "work" ? "仕事" : "個人") + "</span>" + edit + "</div>" +
-        '<div class="title">' + esc(e.title) + "</div>" + span + memo + "</div>";
+        '<div class="title">' + esc(dayTitle(e)) + "</div>" + span + memo + "</div>";
     }).join("");
     box.querySelectorAll("[data-edit]").forEach(b => b.addEventListener("click", () => openForm(b.getAttribute("data-edit"))));
   }
