@@ -284,8 +284,8 @@ if (typeof document !== "undefined") {
       const time = e.startTime ? e.startTime + (e.endTime ? "〜" + e.endTime : "〜") : "時間なし";
       const span = e.endDate && e.endDate !== e.startDate ? '<div class="sub">' + e.startDate + " 〜 " + e.endDate + "</div>" : "";
       const memo = e.memo ? '<div class="memo">' + esc(e.memo).replace(/\n/g, "<br>") + "</div>" : "";
-      const edit = e.source === "csv" ? '<span class="tag">CSV</span>' :
-        '<button class="mini" data-edit="' + e.id + '">直す</button>';
+      const edit = '<button class="mini" data-edit="' + e.id + '">直す</button>' +
+        (e.source === "csv" ? '<span class="tag">CSV</span>' : "");
       return '<div class="card ' + e.kind + '"><div class="cardhead"><span class="time">' + esc(time) + "</span>" +
         '<span class="kind">' + (e.kind === "work" ? "仕事" : "個人") + "</span>" + edit + "</div>" +
         '<div class="title">' + esc(dayTitle(e)) + "</div>" + span + memo + "</div>";
@@ -318,14 +318,20 @@ if (typeof document !== "undefined") {
     if (!start) { alert("日付を選んでください"); return; }
     if (end < start) { alert("終わりの日が始まりより前になっています"); return; }
     const freq = document.getElementById("fRepeat").value;
+    const kind = document.getElementById("fKind").value;
+    const orig = editingId ? allEntries().find(x => x.id === editingId) : null;
+    // CSV由来の予定を直したときは出どころ（source）と種別を引き継ぐ。
+    // これにより、同じ月のCSVを取り込み直すと編集分も含めて入れ替わる（仕様通り）。
+    // 種類を変えた場合は本人の予定として扱い、source は manual にする。
+    const keepCsv = !!(orig && orig.source === "csv" && orig.kind === kind);
     const entry = {
       id: editingId || uid(),
-      kind: document.getElementById("fKind").value,
-      source: "manual",
-      workType: "",
+      kind,
+      source: keepCsv ? "csv" : "manual",
+      workType: keepCsv ? (orig.workType || "") : "",
       title, detail: title,
       memo: document.getElementById("fMemo").value.trim(),
-      participants: "", facility: "",
+      participants: keepCsv ? (orig.participants || "") : "", facility: keepCsv ? (orig.facility || "") : "",
       startDate: start, endDate: end,
       startTime: document.getElementById("fStartTime").value,
       endTime: document.getElementById("fEndTime").value,
