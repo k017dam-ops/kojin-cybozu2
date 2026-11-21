@@ -230,6 +230,21 @@ if (typeof document !== "undefined") {
   function uid() { return "e" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
   function esc(s) { return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
+  /* ----- 最新版へ更新（古い版の残りを消して読み直す。データには触らない） ----- */
+  async function forceUpdate() {
+    try {
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) await r.unregister();
+      }
+      if (window.caches) {
+        const keys = await caches.keys();
+        for (const k of keys) await caches.delete(k);
+      }
+    } catch (e) { /* 消せなくても読み直しはする */ }
+    location.reload();
+  }
+
   /* ----- 画面切り替え ----- */
   function show(id) {
     document.querySelectorAll(".screen").forEach(el => el.style.display = "none");
@@ -474,6 +489,7 @@ if (typeof document !== "undefined") {
     document.getElementById("btnFormSave").addEventListener("click", submitForm);
     document.getElementById("btnDelete").addEventListener("click", deleteEditing);
     document.getElementById("csvFile").addEventListener("change", ev => { if (ev.target.files[0]) importCSVFile(ev.target.files[0]); ev.target.value = ""; });
+    document.getElementById("btnUpdate").addEventListener("click", forceUpdate);
     document.getElementById("btnSettings").addEventListener("click", () => { renderSettings(); show("scrSettings"); });
     document.getElementById("btnSettingsBack").addEventListener("click", () => { renderCalendar(); show("scrCal"); });
     document.getElementById("btnSaveUrl").addEventListener("click", () => { store.cybozuUrl = document.getElementById("fCybozuUrl").value.trim(); saveStore(false); alert("保存しました"); });
