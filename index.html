@@ -36,6 +36,16 @@ main{padding:12px;max-width:640px;margin:0 auto}
 .ttl.work{background:#dbeafe;color:#1e40af}
 .ttl.personal{background:#fce7f3;color:#9d174d}
 .ttl.more{background:#f1f1f1;color:#555}
+.cell.sel{outline:3px solid #f59e0b;outline-offset:-3px}
+#homeDayList{margin-top:16px}
+.hdhead{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.hdhead h2{margin:0}
+.hrow{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;background:#fff;border:1px solid #e2e2e2;border-left:6px solid #999;border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.hrow.work{border-left-color:#2563eb}
+.hrow.personal{border-left-color:#ec4899}
+.htime{font-weight:700;font-size:14px;min-width:86px;color:#111}
+.hname{flex:1;font-size:15px;word-break:break-word}
+.hkind{font-size:11px;color:#555;white-space:nowrap}
 #backupBanner{display:none;background:#fff7ed;border:1px solid #fdba74;border-radius:10px;padding:10px;margin-bottom:10px;font-size:14px}
 .card{background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;border-left:6px solid #999}
 .card.work{border-left-color:#2563eb}
@@ -87,6 +97,7 @@ input[type=file]{display:none}
     </header>
     <div id="backupBanner"></div>
     <div id="calendar"></div>
+    <div id="homeDayList"></div>
     <div class="toolbar row">
       <button id="btnAdd" class="primary">＋ 予定を足す</button>
       <label class="filebtn" for="csvFile">CSVを取り込む</label>
@@ -95,7 +106,7 @@ input[type=file]{display:none}
       <button id="btnSettings">設定</button>
     </div>
     <div id="importResult"></div>
-    <p class="muted">青＝仕事、ピンク＝個人。日を押すと詳しく見られます。</p>
+    <p class="muted">青＝仕事、ピンク＝個人。日を押すと、下にその日の予定（時間と現場名）が出ます。</p>
   </section>
 
   <!-- 日の詳細 -->

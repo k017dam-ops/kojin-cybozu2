@@ -236,6 +236,10 @@ if (typeof document !== "undefined") {
 
   /* ----- 月カレンダー ----- */
   function renderCalendar() {
+    const todayYMD = toYMD(new Date());
+    if (selectedDate.slice(0, 7) !== viewMonth) {
+      selectedDate = (viewMonth === todayYMD.slice(0, 7)) ? todayYMD : viewMonth + "-01";
+    }
     const [y, m] = viewMonth.split("-").map(Number);
     document.getElementById("monthTitle").textContent = y + "年" + m + "月";
     const first = new Date(y, m - 1, 1);
@@ -252,14 +256,36 @@ if (typeof document !== "undefined") {
       if (es.length > 2) lines += '<span class="ttl more">他' + (es.length - 2) + "件</span>";
       const wd = (startDay + d - 1) % 7;
       const dcls = wd === 0 ? " sun" : wd === 6 ? " sat" : "";
-      html += '<button class="cell' + (ymd === today ? " today" : "") + '" data-date="' + ymd + '"><span class="dnum' + dcls + '">' + d + "</span>" + lines + "</button>";
+      html += '<button class="cell' + (ymd === today ? " today" : "") + (ymd === selectedDate ? " sel" : "") + '" data-date="' + ymd + '"><span class="dnum' + dcls + '">' + d + "</span>" + lines + "</button>";
     }
     html += "</div>";
     document.getElementById("calendar").innerHTML = html;
     document.querySelectorAll(".cell[data-date]").forEach(el => {
-      el.addEventListener("click", () => { selectedDate = el.getAttribute("data-date"); renderDay(); show("scrDay"); });
+      el.addEventListener("click", () => { selectedDate = el.getAttribute("data-date"); renderCalendar(); });
     });
+    renderHomeDayList();
     renderBackupBanner();
+  }
+
+  /* ----- カレンダー下の日のリスト（時間＋現場名） ----- */
+  function renderHomeDayList() {
+    const box = document.getElementById("homeDayList");
+    if (!box) return;
+    const es = entriesOn(selectedDate);
+    const dt = new Date(selectedDate + "T00:00:00");
+    const dow = ["日", "月", "火", "水", "木", "金", "土"][dt.getDay()];
+    let html = '<div class="hdhead"><h2>' + (dt.getMonth() + 1) + "月" + dt.getDate() + "日（" + dow + '）の予定</h2><div class="spacer"></div><button class="mini" id="hdDetail">詳しく見る</button></div>';
+    if (!es.length) {
+      html += '<p class="muted">この日の予定はありません。</p>';
+    } else {
+      html += es.map(e => {
+        const time = e.startTime ? e.startTime + (e.endTime ? "〜" + e.endTime : "〜") : "時間なし";
+        return '<button class="hrow ' + e.kind + '"><span class="htime">' + esc(time) + '</span><span class="hname">' + esc(monthLabel(e)) + '</span><span class="hkind">' + (e.kind === "work" ? "仕事" : "個人") + "</span></button>";
+      }).join("");
+    }
+    box.innerHTML = html;
+    document.getElementById("hdDetail").addEventListener("click", () => { renderDay(); show("scrDay"); });
+    box.querySelectorAll(".hrow").forEach(r => r.addEventListener("click", () => { renderDay(); show("scrDay"); }));
   }
 
   function renderBackupBanner() {
