@@ -36,6 +36,13 @@ function normDate(s) {
   if (!m) return null;
   return m[1] + "-" + String(m[2]).padStart(2, "0") + "-" + String(m[3]).padStart(2, "0");
 }
+// "9:00" -> 540（0時からの分）。時刻として読めなければ null
+function timeMin(t) {
+  const m = String(t || "").trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
 // "9:00:00" -> "9:00"
 function normTime(s) {
   const m = String(s || "").trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
@@ -118,7 +125,7 @@ function occursOn(e, ymd) {
 
 /* ---------- ここからブラウザ専用 ---------- */
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { parseCSV, convertCybozuCSV, normDate, normTime, occursOn, CSV_HEADER };
+  module.exports = { parseCSV, convertCybozuCSV, normDate, normTime, occursOn, CSV_HEADER, timeMin };
 }
 
 if (typeof document !== "undefined") {
@@ -206,7 +213,11 @@ if (typeof document !== "undefined") {
   }
   function allEntries() { return store.personal.concat(store.work); }
   function entriesOn(ymd) {
-    return allEntries().filter(e => occursOn(e, ymd)).sort((a, b) => (a.startTime || "99") < (b.startTime || "99") ? -1 : 1);
+    // スタート時間が早い順。時刻が無いものは後ろ。
+    return allEntries().filter(e => occursOn(e, ymd)).sort((a, b) => {
+      const ta = timeMin(a.startTime), tb = timeMin(b.startTime);
+      return (ta === null ? 9999 : ta) - (tb === null ? 9999 : tb);
+    });
   }
   // 予定詳細が担当名（小林／渡部）だけの仕事行は、名前では内容が分からないため種別で表示する。
   function isNameOnlyWork(e) {
