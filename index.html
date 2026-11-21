@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>個人サイボウズ2</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2563eb">
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;background:#f6f7f9;color:#111;-webkit-text-size-adjust:100%}
+header{position:sticky;top:0;background:#fff;border-bottom:1px solid #ddd;padding:10px 12px;z-index:5}
+h1{font-size:18px;margin:0}
+h2{font-size:17px;margin:6px 0 10px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.spacer{flex:1}
+button{font-size:15px;padding:9px 13px;border:1px solid #bbb;border-radius:10px;background:#fff;cursor:pointer}
+button.primary{background:#2563eb;color:#fff;border-color:#2563eb}
+button.danger{background:#fff;color:#b91c1c;border-color:#b91c1c}
+button.mini{padding:4px 9px;font-size:13px}
+main{padding:12px;max-width:640px;margin:0 auto}
+.dow,.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.dow span{text-align:center;font-size:12px;color:#666;padding:2px 0}
+.cell{min-height:58px;border:1px solid #e2e2e2;border-radius:8px;background:#fff;text-align:left;padding:4px;position:relative}
+.cell.empty{border:none;background:transparent}
+.cell.today{border:2px solid #2563eb}
+.dnum{font-size:14px;font-weight:600}
+.mark{display:inline-block;min-width:18px;text-align:center;font-size:11px;color:#fff;border-radius:9px;padding:1px 4px;margin:2px 1px 0 0}
+.mark.work{background:#2563eb}
+.mark.personal{background:#ec4899}
+#backupBanner{display:none;background:#fff7ed;border:1px solid #fdba74;border-radius:10px;padding:10px;margin-bottom:10px;font-size:14px}
+.card{background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;border-left:6px solid #999}
+.card.work{border-left-color:#2563eb}
+.card.personal{border-left-color:#ec4899}
+.cardhead{display:flex;gap:8px;align-items:center}
+.time{font-weight:700}
+.kind{font-size:12px;color:#555}
+.tag{font-size:11px;background:#eef2ff;border-radius:6px;padding:2px 6px;margin-left:auto}
+.cardhead .mini{margin-left:auto}
+.title{font-size:16px;margin-top:4px;white-space:pre-wrap;word-break:break-word}
+.sub{font-size:13px;color:#555;margin-top:2px}
+.memo{font-size:13px;color:#333;background:#f8fafc;border-radius:8px;padding:8px;margin-top:8px;word-break:break-word}
+.muted{color:#777;font-size:14px}
+label{display:block;font-size:13px;color:#444;margin:12px 0 4px}
+input,select,textarea{width:100%;font-size:16px;padding:10px;border:1px solid #bbb;border-radius:10px;background:#fff}
+textarea{min-height:80px}
+.snap{font-size:13px;padding:8px 0;border-bottom:1px solid #eee}
+#importResult{font-size:15px;font-weight:600;margin:8px 0;white-space:pre-wrap}
+.toolbar{margin:10px 0}
+.filebtn{display:inline-block;font-size:15px;padding:9px 13px;border:1px solid #bbb;border-radius:10px;background:#fff;cursor:pointer}
+input[type=file]{display:none}
+</style>
+</head>
+<body>
+<main>
+  <!-- パスワード -->
+  <section id="scrLock" class="screen" style="display:none">
+    <h2 id="lockTitle">パスワード</h2>
+    <p id="lockNote" class="muted"></p>
+    <label>パスワード</label>
+    <input id="lockPw" type="password" autocomplete="current-password">
+    <div id="lockPw2row">
+      <label>もう一度（確認）</label>
+      <input id="lockPw2" type="password" autocomplete="new-password">
+    </div>
+    <div class="toolbar"><button id="btnLockSubmit" class="primary">開く</button></div>
+  </section>
+
+  <!-- 月カレンダー -->
+  <section id="scrCal" class="screen">
+    <header style="margin:-12px -12px 10px">
+      <div class="row">
+        <h1 id="monthTitle">個人サイボウズ2</h1>
+        <div class="spacer"></div>
+        <button id="btnPrev">前</button>
+        <button id="btnToday">今日</button>
+        <button id="btnNext">次</button>
+      </div>
+    </header>
+    <div id="backupBanner"></div>
+    <div id="calendar"></div>
+    <div class="toolbar row">
+      <button id="btnAdd" class="primary">＋ 予定を足す</button>
+      <label class="filebtn" for="csvFile">CSVを取り込む</label>
+      <input type="file" id="csvFile" accept=".csv,text/csv">
+      <button id="btnOpenCybozu">サイボウズを開く</button>
+      <button id="btnSettings">設定</button>
+    </div>
+    <div id="importResult"></div>
+    <p class="muted">青＝仕事の件数、ピンク＝個人の件数。日を押すと詳しく見られます。</p>
+  </section>
+
+  <!-- 日の詳細 -->
+  <section id="scrDay" class="screen" style="display:none">
+    <div class="row"><button id="btnBackCal">← カレンダーへ</button><div class="spacer"></div><button id="btnDayAdd" class="primary">＋ 足す</button></div>
+    <h2 id="dayTitle"></h2>
+    <div id="dayList"></div>
+  </section>
+
+  <!-- 追加・編集 -->
+  <section id="scrForm" class="screen" style="display:none">
+    <h2 id="formTitle">予定を足す</h2>
+    <label>種類</label>
+    <select id="fKind">
+      <option value="personal">個人</option>
+      <option value="work">仕事（手で足す）</option>
+    </select>
+    <label>内容（現場名や予定名）</label>
+    <input id="fTitle" type="text">
+    <label>始まりの日</label>
+    <input id="fStart" type="date">
+    <label>終わりの日（同じ現場が続くときは最後の日）</label>
+    <input id="fEnd" type="date">
+    <label>始まりの時間（なくてもよい）</label>
+    <input id="fStartTime" type="time">
+    <label>終わりの時間（なくてもよい）</label>
+    <input id="fEndTime" type="time">
+    <label>メモ</label>
+    <textarea id="fMemo"></textarea>
+    <label>繰り返し（個人予定用）</label>
+    <select id="fRepeat">
+      <option value="">繰り返さない</option>
+      <option value="weekly">毎週</option>
+      <option value="monthly">毎月</option>
+    </select>
+    <label>繰り返しの終わりの日（なくてもよい）</label>
+    <input id="fRepeatUntil" type="date">
+    <div class="toolbar row">
+      <button id="btnFormSave" class="primary">保存する</button>
+      <button id="btnFormCancel">やめる</button>
+      <button id="btnDelete" class="danger" style="display:none">この予定を消す</button>
+    </div>
+  </section>
+
+  <!-- 設定 -->
+  <section id="scrSettings" class="screen" style="display:none">
+    <div class="row"><button id="btnSettingsBack">← カレンダーへ</button></div>
+    <h2>設定</h2>
+    <p id="dataCounts" class="muted"></p>
+    <label>サイボウズOfficeのアドレス（「サイボウズを開く」ボタンの行き先）</label>
+    <input id="fCybozuUrl" type="url" placeholder="https://...">
+    <div class="toolbar"><button id="btnSaveUrl">アドレスを保存</button></div>
+    <h2>控えファイル</h2>
+    <div class="toolbar row">
+      <button id="btnExport">控えファイルを出す</button>
+      <label class="filebtn" for="backupFile">控えファイルから戻す</label>
+      <input type="file" id="backupFile" accept=".json,application/json">
+    </div>
+    <h2>自動控え（アプリの中）</h2>
+    <div id="snapshotList"></div>
+    <h2>パスワード</h2>
+    <label>今のパスワード</label>
+    <input id="fPwCurrent" type="password" autocomplete="current-password">
+    <label>新しいパスワード</label>
+    <input id="fPwNew" type="password" autocomplete="new-password">
+    <div class="toolbar row">
+      <button id="btnChangePw">パスワードを変える</button>
+      <button id="btnLockNow">鍵をかけ直す</button>
+    </div>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
