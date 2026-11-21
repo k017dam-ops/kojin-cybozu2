@@ -231,12 +231,10 @@ if (typeof document !== "undefined") {
     for (let d = 1; d <= daysInMonth; d++) {
       const ymd = y + "-" + String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0");
       const es = entriesOn(ymd);
-      const works = es.filter(e => e.kind === "work").length;
-      const pers = es.filter(e => e.kind === "personal").length;
-      let marks = "";
-      if (works) marks += '<span class="mark work">' + works + "</span>";
-      if (pers) marks += '<span class="mark personal">' + pers + "</span>";
-      html += '<button class="cell' + (ymd === today ? " today" : "") + '" data-date="' + ymd + '"><span class="dnum">' + d + "</span>" + marks + "</button>";
+      let lines = "";
+      es.slice(0, 2).forEach(e => { lines += '<span class="ttl ' + e.kind + '">' + esc(e.title) + "</span>"; });
+      if (es.length > 2) lines += '<span class="ttl more">他' + (es.length - 2) + "件</span>";
+      html += '<button class="cell' + (ymd === today ? " today" : "") + '" data-date="' + ymd + '"><span class="dnum">' + d + "</span>" + lines + "</button>";
     }
     html += "</div>";
     document.getElementById("calendar").innerHTML = html;

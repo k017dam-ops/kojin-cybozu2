@@ -2,8 +2,9 @@
 // 予定データは localStorage 側にあり、ここでは一切扱わない。
 // 方針はネット優先：新しい版が置かれたら必ず届くようにし、
 // 取れた応答でキャッシュも更新する。オフラインのときだけキャッシュを返す。
-const CACHE = "kojin-cybozu2-v2";
-const ASSETS = ["./index.html", "./app.js", "./manifest.webmanifest", "./icon-180.png", "./icon-512.png"];
+const CACHE = "kojin-cybozu2-v3";
+// アイコンPNGはまだ配置できていない（404のファイルが1つでもあると addAll 全体が失敗するため、置けるまで外す）。
+const ASSETS = ["./index.html", "./app.js", "./manifest.webmanifest"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
