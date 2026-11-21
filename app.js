@@ -259,7 +259,7 @@ if (typeof document !== "undefined") {
       if (es.length > 2) lines += '<span class="ttl more">他' + (es.length - 2) + "件</span>";
       const wd = (startDay + d - 1) % 7;
       const dcls = wd === 0 ? " sun" : wd === 6 ? " sat" : "";
-      html += '<button class="cell' + (ymd === today ? " today" : "") + (ymd === selectedDate ? " sel" : "") + '" data-date="' + ymd + '"><span class="dnum' + dcls + '">' + d + "</span>" + lines + "</button>";
+      html += '<button class="cell' + (ymd === today ? " today" : "") + (ymd === selectedDate ? " sel" : "") + (es.length === 0 ? " offday" : "") + '" data-date="' + ymd + '"><span class="dnum' + dcls + '">' + d + "</span>" + lines + "</button>";
     }
     html += "</div>";
     document.getElementById("calendar").innerHTML = html;
@@ -279,7 +279,7 @@ if (typeof document !== "undefined") {
     const dow = ["日", "月", "火", "水", "木", "金", "土"][dt.getDay()];
     let html = '<div class="hdhead"><h2>' + (dt.getMonth() + 1) + "月" + dt.getDate() + "日（" + dow + '）の予定</h2><div class="spacer"></div><button class="mini" id="hdDetail">詳しく見る</button></div>';
     if (!es.length) {
-      html += '<p class="muted">この日の予定はありません。</p>';
+      html += '<p class="emptyoff">この日の予定はありません。</p>';
     } else {
       html += es.map(e => {
         const time = e.startTime ? e.startTime + (e.endTime ? "〜" + e.endTime : "〜") : "時間なし";
