@@ -51,6 +51,15 @@ main{padding:12px;max-width:640px;margin:0 auto}
 .hrow.off{border-left-color:#dc2626}
 .hrow.off .hname{color:#b91c1c;font-weight:700}
 .hrow.off .hkind{color:#b91c1c;font-weight:700}
+.seg{display:flex;margin-bottom:10px}
+.seg button{flex:1;padding:8px;font-size:14px;background:#fff;border:1px solid #cbd5e1;color:#334155;cursor:pointer}
+.seg button:first-child{border-radius:8px 0 0 8px}
+.seg button:last-child{border-radius:0 8px 8px 0}
+.seg button.on{background:#1e3a5f;color:#fff;font-weight:700;border-color:#1e3a5f}
+.lday{font-size:14px;font-weight:700;margin:14px 0 6px;color:#111}
+.lday.sun{color:#dc2626}
+.lday.sat{color:#2563eb}
+.lday .todaybadge{background:#2563eb;color:#fff;font-size:11px;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:2px}
 .card.off{border-left-color:#dc2626}
 .card.off .title{color:#b91c1c;font-weight:700}
 .cell.offday{background:#fef2f2}
@@ -114,6 +123,8 @@ input[type=file]{display:none}
       </div>
     </header>
     <div id="backupBanner"></div>
+    <div class="seg"><button id="btnViewList">リスト</button><button id="btnViewMonth">月</button></div>
+    <div id="homeList"></div>
     <div id="calendar"></div>
     <div id="homeDayList"></div>
     <div class="toolbar row">
@@ -126,7 +137,7 @@ input[type=file]{display:none}
       <button id="btnSettings">設定</button>
     </div>
     <div id="importResult"></div>
-    <p class="muted">青＝仕事、ピンク＝個人。日を押すと、下にその日の予定（時間と現場名）が出ます。</p>
+    <p class="muted">青＝仕事、ピンク＝個人。予定を押すと詳しく見られます。上のボタンで「リスト」と「月」を切り替えられます。</p>
   </section>
 
   <!-- 日の詳細 -->

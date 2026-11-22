@@ -182,7 +182,7 @@ if (typeof document !== "undefined") {
     // todoItems: null = まだ初期項目を入れていない（初回にTODOを開いたとき入れる）。
     // 空の配列は「本人が全部消した」状態として尊重し、初期項目を入れ直さない。
     // todoChecks: { "YYYY-MM": { itemId: true } } 月ごとのチェック状態。
-    return { personal: [], work: [], snapshots: [], cybozuUrl: "", lastBackupExport: null, pwSalt: "", pwHash: "", todoItems: null, todoChecks: {} };
+    return { personal: [], work: [], snapshots: [], cybozuUrl: "", lastBackupExport: null, pwSalt: "", pwHash: "", todoItems: null, todoChecks: {}, viewMode: "list" };
   }
   async function hashPassword(pw, salt) {
     const msg = salt + "::" + pw;
@@ -320,6 +320,13 @@ if (typeof document !== "undefined") {
     }
     const [y, m] = viewMonth.split("-").map(Number);
     document.getElementById("monthTitle").textContent = y + "年" + m + "月";
+    const listMode = store.viewMode !== "month";
+    document.getElementById("btnViewList").classList.toggle("on", listMode);
+    document.getElementById("btnViewMonth").classList.toggle("on", !listMode);
+    document.getElementById("calendar").style.display = listMode ? "none" : "";
+    document.getElementById("homeDayList").style.display = listMode ? "none" : "";
+    if (listMode) { renderMonthList(); renderBackupBanner(); return; }
+    document.getElementById("homeList").innerHTML = "";
     const first = new Date(y, m - 1, 1);
     const startDay = first.getDay(); // 日曜=0
     const daysInMonth = new Date(y, m, 0).getDate();
@@ -343,6 +350,33 @@ if (typeof document !== "undefined") {
     });
     renderHomeDayList();
     renderBackupBanner();
+  }
+
+  /* ----- トップ画面のリスト表示（1か月分を日ごとに、現場名を全文で） ----- */
+  function renderMonthList() {
+    const box = document.getElementById("homeList");
+    if (!box) return;
+    const [y, m] = viewMonth.split("-").map(Number);
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const today = toYMD(new Date());
+    const dows = ["日", "月", "火", "水", "木", "金", "土"];
+    let html = "";
+    let any = false;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ymd = y + "-" + String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+      const es = entriesOn(ymd);
+      if (!es.length) continue;
+      any = true;
+      const wd = new Date(y, m - 1, d).getDay();
+      const dcls = wd === 0 ? " sun" : wd === 6 ? " sat" : "";
+      html += '<div class="lday' + dcls + '">' + d + "日（" + dows[wd] + "）" + (ymd === today ? '<span class="todaybadge">今日</span>' : "") + "</div>";
+      html += es.map(e => {
+        const time = e.startTime ? e.startTime + (e.endTime ? "〜" + e.endTime : "〜") : "時間なし";
+        return '<button class="hrow ' + e.kind + (isDayOff(e) ? " off" : "") + '" data-date="' + ymd + '"><span class="htime">' + esc(time) + '</span><span class="hname">' + esc(monthLabel(e)) + '</span><span class="hkind">' + (isDayOff(e) ? "休み" : (e.kind === "work" ? "仕事" : "個人")) + "</span></button>";
+      }).join("");
+    }
+    box.innerHTML = any ? html : '<p class="muted">この月の予定はありません。</p>';
+    box.querySelectorAll(".hrow").forEach(r => r.addEventListener("click", () => { selectedDate = r.getAttribute("data-date"); renderDay(); show("scrDay"); }));
   }
 
   /* ----- カレンダー下の日のリスト（時間＋現場名） ----- */
@@ -605,6 +639,8 @@ if (typeof document !== "undefined") {
     document.getElementById("btnPrev").addEventListener("click", () => { const [y, m] = viewMonth.split("-").map(Number); const d = new Date(y, m - 2, 1); viewMonth = toYMD(d).slice(0, 7); renderCalendar(); });
     document.getElementById("btnNext").addEventListener("click", () => { const [y, m] = viewMonth.split("-").map(Number); const d = new Date(y, m, 1); viewMonth = toYMD(d).slice(0, 7); renderCalendar(); });
     document.getElementById("btnToday").addEventListener("click", () => { viewMonth = toYMD(new Date()).slice(0, 7); renderCalendar(); });
+    document.getElementById("btnViewList").addEventListener("click", () => { store.viewMode = "list"; saveStore(false); renderCalendar(); });
+    document.getElementById("btnViewMonth").addEventListener("click", () => { store.viewMode = "month"; saveStore(false); renderCalendar(); });
     document.getElementById("btnAdd").addEventListener("click", () => openForm(null));
     document.getElementById("btnTodo").addEventListener("click", () => { todoMonth = viewMonth; renderTodo(); show("scrTodo"); });
     document.getElementById("btnTodoBack").addEventListener("click", () => { renderCalendar(); show("scrCal"); });
