@@ -365,6 +365,7 @@ if (typeof document !== "undefined") {
     const dows = ["日", "月", "火", "水", "木", "金", "土"];
     let html = "";
     let any = false;
+    let dayCount = 0;
     for (let d = 1; d <= daysInMonth; d++) {
       const ymd = y + "-" + String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0");
       const es = entriesOn(ymd);
@@ -372,11 +373,14 @@ if (typeof document !== "undefined") {
       any = true;
       const wd = new Date(y, m - 1, d).getDay();
       const dcls = wd === 0 ? " sun" : wd === 6 ? " sat" : "";
-      html += '<div class="lday' + dcls + '">' + d + "日（" + dows[wd] + "）" + (ymd === today ? '<span class="todaybadge">今日</span>' : "") + "</div>";
+      html += '<div class="lday-block' + (dayCount % 2 ? " alt" : "") + (ymd === today ? " today" : "") + '">';
+      html += '<div class="lday' + dcls + '"><span class="dnum">' + d + "</span>日（" + dows[wd] + "）" + (ymd === today ? '<span class="todaybadge">今日</span>' : "") + "</div>";
       html += es.map(e => {
         const time = e.startTime ? e.startTime + (e.endTime ? "〜" + e.endTime : "〜") : "時間なし";
         return '<button class="hrow ' + e.kind + (isDayOff(e) ? " off" : "") + '" data-date="' + ymd + '"><span class="htime">' + esc(time) + '</span><span class="hname">' + esc(monthLabel(e)) + '</span><span class="hkind">' + (isDayOff(e) ? "休み" : (e.kind === "work" ? "仕事" : "個人")) + "</span></button>";
       }).join("");
+      html += "</div>";
+      dayCount++;
     }
     box.innerHTML = any ? html : '<p class="muted">この月の予定はありません。</p>';
     box.querySelectorAll(".hrow").forEach(r => r.addEventListener("click", () => { selectedDate = r.getAttribute("data-date"); renderDay(); show("scrDay"); }));
