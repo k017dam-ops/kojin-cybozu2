@@ -123,9 +123,49 @@ function occursOn(e, ymd) {
   return cmpYMD(e.startDate, ymd) <= 0 && cmpYMD(ymd, e.endDate || e.startDate) <= 0;
 }
 
+/* ---------- 毎月TODO（テスト可能な純粋関数） ---------- */
+// 期限グループは4つ固定。営業日は「平日（月〜金）」で数える（祝日は数えない）。
+// 検証済みの例: 2026年11月の第4営業日 = 2026-11-05。
+const TODO_GROUPS = [
+  { key: "biz4", label: "1日〜4営業日まで" },
+  { key: "day5", label: "5日まで" },
+  { key: "day7", label: "7日" },
+  { key: "day15", label: "15日" }
+];
+const TODO_DEFAULTS = [
+  { group: "biz4", title: "請求明細書と納品書をアートにメールする" },
+  { group: "day5", title: "売上報告" },
+  { group: "day5", title: "税理士資料提出" },
+  { group: "day7", title: "AMEX支払確認" },
+  { group: "day15", title: "給料支払予約" },
+  { group: "day15", title: "AGBS支払予約" }
+];
+
+// ym ("YYYY-MM") の月の第n営業日（平日）を "YYYY-MM-DD" で返す
+function nthBusinessDay(ym, n) {
+  const [y, m] = ym.split("-").map(Number);
+  let count = 0;
+  for (let d = 1; d <= 31; d++) {
+    const dt = new Date(y, m - 1, d);
+    if (dt.getMonth() !== m - 1) break;
+    const wd = dt.getDay();
+    if (wd >= 1 && wd <= 5) { count++; if (count === n) return toYMD(dt); }
+  }
+  return null;
+}
+
+// グループのその月の実際の期限日を "YYYY-MM-DD" で返す
+function todoDeadline(group, ym) {
+  if (group === "biz4") return nthBusinessDay(ym, 4);
+  if (group === "day5") return ym + "-05";
+  if (group === "day7") return ym + "-07";
+  if (group === "day15") return ym + "-15";
+  return null;
+}
+
 /* ---------- ここからブラウザ専用 ---------- */
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { parseCSV, convertCybozuCSV, normDate, normTime, occursOn, CSV_HEADER, timeMin };
+  module.exports = { parseCSV, convertCybozuCSV, normDate, normTime, occursOn, CSV_HEADER, timeMin, TODO_GROUPS, TODO_DEFAULTS, nthBusinessDay, todoDeadline };
 }
 
 if (typeof document !== "undefined") {
@@ -136,9 +176,13 @@ if (typeof document !== "undefined") {
   let viewMonth = toYMD(new Date()).slice(0, 7); // "YYYY-MM"
   let selectedDate = toYMD(new Date());
   let editingId = null;
+  let todoMonth = toYMD(new Date()).slice(0, 7); // 毎月TODOで表示中の月 "YYYY-MM"
 
   function emptyStore() {
-    return { personal: [], work: [], snapshots: [], cybozuUrl: "", lastBackupExport: null, pwSalt: "", pwHash: "" };
+    // todoItems: null = まだ初期項目を入れていない（初回にTODOを開いたとき入れる）。
+    // 空の配列は「本人が全部消した」状態として尊重し、初期項目を入れ直さない。
+    // todoChecks: { "YYYY-MM": { itemId: true } } 月ごとのチェック状態。
+    return { personal: [], work: [], snapshots: [], cybozuUrl: "", lastBackupExport: null, pwSalt: "", pwHash: "", todoItems: null, todoChecks: {} };
   }
   async function hashPassword(pw, salt) {
     const msg = salt + "::" + pw;
@@ -206,7 +250,7 @@ if (typeof document !== "undefined") {
   }
   function saveStore(withSnapshot) {
     if (withSnapshot) {
-      store.snapshots.push({ ts: new Date().toISOString(), data: JSON.stringify({ personal: store.personal, work: store.work }) });
+      store.snapshots.push({ ts: new Date().toISOString(), data: JSON.stringify({ personal: store.personal, work: store.work, todoItems: store.todoItems, todoChecks: store.todoChecks }) });
       while (store.snapshots.length > 10) store.snapshots.shift(); // 自動控えは最新10世代
     }
     localStorage.setItem(LS_KEY, JSON.stringify(store));
@@ -329,6 +373,63 @@ if (typeof document !== "undefined") {
     } else el.style.display = "none";
   }
 
+  /* ----- 毎月TODO ----- */
+  function ensureTodoSeeded() {
+    if (store.todoItems === null || store.todoItems === undefined) {
+      store.todoItems = TODO_DEFAULTS.map(d => ({ id: uid(), group: d.group, title: d.title }));
+      if (!store.todoChecks || typeof store.todoChecks !== "object") store.todoChecks = {};
+      saveStore(false);
+    }
+  }
+  function renderTodo() {
+    ensureTodoSeeded();
+    const [y, m] = todoMonth.split("-").map(Number);
+    document.getElementById("todoTitle").textContent = y + "年" + m + "月の毎月TODO";
+    const checks = (store.todoChecks && store.todoChecks[todoMonth]) || {};
+    const items = store.todoItems || [];
+    const done = items.filter(it => checks[it.id]).length;
+    document.getElementById("todoProgress").textContent = items.length + "件中" + done + "件完了";
+    const box = document.getElementById("todoList");
+    box.innerHTML = TODO_GROUPS.map(g => {
+      const dl = todoDeadline(g.key, todoMonth);
+      const ddt = new Date(dl + "T00:00:00");
+      const due = "期限：" + (ddt.getMonth() + 1) + "月" + ddt.getDate() + "日（" + ["日", "月", "火", "水", "木", "金", "土"][ddt.getDay()] + "）";
+      const rows = items.filter(it => it.group === g.key).map(it =>
+        '<div class="trow' + (checks[it.id] ? " done" : "") + '"><input type="checkbox" data-tcheck="' + it.id + '"' + (checks[it.id] ? " checked" : "") + '><span class="tt">' + esc(it.title) + '</span><button class="mini danger" data-tdel="' + it.id + '">消す</button></div>'
+      ).join("");
+      return '<div class="tgroup"><h3>' + esc(g.label) + '</h3><div class="tdue">' + due + "</div>" + (rows || '<p class="muted">項目はありません</p>') + "</div>";
+    }).join("");
+    box.querySelectorAll("[data-tcheck]").forEach(cb => cb.addEventListener("change", () => {
+      if (!store.todoChecks || typeof store.todoChecks !== "object") store.todoChecks = {};
+      if (!store.todoChecks[todoMonth]) store.todoChecks[todoMonth] = {};
+      const id = cb.getAttribute("data-tcheck");
+      if (cb.checked) store.todoChecks[todoMonth][id] = true;
+      else delete store.todoChecks[todoMonth][id];
+      saveStore(true);
+      renderTodo();
+    }));
+    box.querySelectorAll("[data-tdel]").forEach(b => b.addEventListener("click", () => {
+      if (!confirm("この項目を消しますか？（すべての月から消えます）")) return;
+      store.todoItems = store.todoItems.filter(it => it.id !== b.getAttribute("data-tdel"));
+      saveStore(true);
+      renderTodo();
+    }));
+  }
+  function addTodoItem() {
+    const title = document.getElementById("tTitle").value.trim();
+    if (!title) { alert("項目名を入れてください"); return; }
+    ensureTodoSeeded();
+    store.todoItems.push({ id: uid(), group: document.getElementById("tGroup").value, title });
+    document.getElementById("tTitle").value = "";
+    saveStore(true);
+    renderTodo();
+  }
+  function shiftTodoMonth(delta) {
+    const [y, m] = todoMonth.split("-").map(Number);
+    todoMonth = toYMD(new Date(y, m - 1 + delta, 1)).slice(0, 7);
+    renderTodo();
+  }
+
   /* ----- 日の詳細 ----- */
   function renderDay() {
     const es = entriesOn(selectedDate);
@@ -433,7 +534,7 @@ if (typeof document !== "undefined") {
 
   /* ----- バックアップ（2段がけの外側） ----- */
   function exportBackup() {
-    const payload = JSON.stringify({ app: "kojin-cybozu2", version: 1, exportedAt: new Date().toISOString(), personal: store.personal, work: store.work }, null, 2);
+    const payload = JSON.stringify({ app: "kojin-cybozu2", version: 1, exportedAt: new Date().toISOString(), personal: store.personal, work: store.work, todoItems: store.todoItems, todoChecks: store.todoChecks }, null, 2);
     const blob = new Blob([payload], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -453,6 +554,9 @@ if (typeof document !== "undefined") {
         if (!confirm("控えファイルから戻しますか？今の予定は控え（自動保存）に残ります。")) return;
         saveStore(true); // 戻す前に現状を自動控えへ
         store.personal = obj.personal; store.work = obj.work;
+        // 毎月TODOは、控えファイルに含まれているときだけ戻す（古い控えファイルでは今のTODOを消さない）
+        if (Array.isArray(obj.todoItems)) store.todoItems = obj.todoItems;
+        if (obj.todoChecks && typeof obj.todoChecks === "object") store.todoChecks = obj.todoChecks;
         saveStore(false);
         renderCalendar(); show("scrCal");
         alert("戻しました");
@@ -465,7 +569,7 @@ if (typeof document !== "undefined") {
   function renderSettings() {
     document.getElementById("fCybozuUrl").value = store.cybozuUrl || "";
     document.getElementById("dataCounts").textContent =
-      "個人予定 " + store.personal.length + "件／仕事予定 " + store.work.length + "件／自動控え " + store.snapshots.length + "世代";
+      "個人予定 " + store.personal.length + "件／仕事予定 " + store.work.length + "件／毎月TODO " + (Array.isArray(store.todoItems) ? store.todoItems.length : 0) + "項目／自動控え " + store.snapshots.length + "世代";
     const box = document.getElementById("snapshotList");
     if (!store.snapshots.length) { box.innerHTML = '<p class="muted">自動控えはまだありません。</p>'; return; }
     box.innerHTML = store.snapshots.map((s, i) => {
@@ -477,6 +581,9 @@ if (typeof document !== "undefined") {
       const d = JSON.parse(store.snapshots[Number(b.getAttribute("data-restore"))].data);
       saveStore(true);
       store.personal = d.personal; store.work = d.work;
+      // 毎月TODOは、その控えに含まれているときだけ戻す（古い控えでは今のTODOを消さない）
+      if (Array.isArray(d.todoItems)) store.todoItems = d.todoItems;
+      if (d.todoChecks && typeof d.todoChecks === "object") store.todoChecks = d.todoChecks;
       saveStore(false);
       renderCalendar(); renderSettings();
       alert("戻しました");
@@ -494,6 +601,12 @@ if (typeof document !== "undefined") {
     document.getElementById("btnNext").addEventListener("click", () => { const [y, m] = viewMonth.split("-").map(Number); const d = new Date(y, m, 1); viewMonth = toYMD(d).slice(0, 7); renderCalendar(); });
     document.getElementById("btnToday").addEventListener("click", () => { viewMonth = toYMD(new Date()).slice(0, 7); renderCalendar(); });
     document.getElementById("btnAdd").addEventListener("click", () => openForm(null));
+    document.getElementById("btnTodo").addEventListener("click", () => { todoMonth = viewMonth; renderTodo(); show("scrTodo"); });
+    document.getElementById("btnTodoBack").addEventListener("click", () => { renderCalendar(); show("scrCal"); });
+    document.getElementById("btnTodoPrev").addEventListener("click", () => shiftTodoMonth(-1));
+    document.getElementById("btnTodoNext").addEventListener("click", () => shiftTodoMonth(1));
+    document.getElementById("btnTodoThis").addEventListener("click", () => { todoMonth = toYMD(new Date()).slice(0, 7); renderTodo(); });
+    document.getElementById("btnTodoAddItem").addEventListener("click", addTodoItem);
     document.getElementById("btnBackCal").addEventListener("click", () => { renderCalendar(); show("scrCal"); });
     document.getElementById("btnDayAdd").addEventListener("click", () => openForm(null));
     document.getElementById("btnFormCancel").addEventListener("click", () => show("scrCal"));

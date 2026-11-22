@@ -72,6 +72,14 @@ label{display:block;font-size:13px;color:#444;margin:12px 0 4px}
 input,select,textarea{width:100%;font-size:16px;padding:10px;border:1px solid #bbb;border-radius:10px;background:#fff}
 textarea{min-height:80px}
 .snap{font-size:13px;padding:8px 0;border-bottom:1px solid #eee}
+.tgroup{background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;border-left:6px solid #2563eb}
+.tgroup h3{margin:0 0 2px;font-size:16px}
+.tdue{font-size:13px;color:#b91c1c;font-weight:700;margin-bottom:6px}
+.trow{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #eee}
+.trow:last-child{border-bottom:none}
+.trow input[type=checkbox]{width:22px;height:22px;flex:none;margin:0}
+.trow .tt{flex:1;font-size:15px;word-break:break-word}
+.trow.done .tt{color:#777;text-decoration:line-through}
 #importResult{font-size:15px;font-weight:600;margin:8px 0;white-space:pre-wrap}
 .toolbar{margin:10px 0}
 .filebtn{display:inline-block;font-size:15px;padding:9px 13px;border:1px solid #bbb;border-radius:10px;background:#fff;cursor:pointer}
@@ -109,6 +117,7 @@ input[type=file]{display:none}
     <div id="homeDayList"></div>
     <div class="toolbar row">
       <button id="btnAdd" class="primary">＋ 予定を足す</button>
+      <button id="btnTodo">毎月TODO</button>
       <label class="filebtn" for="csvFile">CSVを取り込む</label>
       <input type="file" id="csvFile" accept=".csv,text/csv">
       <button id="btnOpenCybozu">サイボウズを開く</button>
@@ -159,6 +168,32 @@ input[type=file]{display:none}
       <button id="btnFormCancel">やめる</button>
       <button id="btnDelete" class="danger" style="display:none">この予定を消す</button>
     </div>
+  </section>
+
+  <!-- 毎月TODO -->
+  <section id="scrTodo" class="screen" style="display:none">
+    <div class="row">
+      <button id="btnTodoBack">← カレンダーへ</button>
+      <div class="spacer"></div>
+      <button id="btnTodoPrev">前</button>
+      <button id="btnTodoThis">今月</button>
+      <button id="btnTodoNext">次</button>
+    </div>
+    <h2 id="todoTitle">毎月TODO</h2>
+    <p id="todoProgress" class="muted"></p>
+    <div id="todoList"></div>
+    <h2>項目を足す</h2>
+    <label>期限のグループ</label>
+    <select id="tGroup">
+      <option value="biz4">1日〜4営業日まで</option>
+      <option value="day5">5日まで</option>
+      <option value="day7">7日</option>
+      <option value="day15">15日</option>
+    </select>
+    <label>項目名</label>
+    <input id="tTitle" type="text">
+    <div class="toolbar"><button id="btnTodoAddItem" class="primary">項目を足す</button></div>
+    <p class="muted">チェックは月ごとに保存されます。月が変わると、新しい月は空のチェックから始まります。</p>
   </section>
 
   <!-- 設定 -->
