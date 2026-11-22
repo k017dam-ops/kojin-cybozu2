@@ -182,7 +182,7 @@ if (typeof document !== "undefined") {
     // todoItems: null = まだ初期項目を入れていない（初回にTODOを開いたとき入れる）。
     // 空の配列は「本人が全部消した」状態として尊重し、初期項目を入れ直さない。
     // todoChecks: { "YYYY-MM": { itemId: true } } 月ごとのチェック状態。
-    return { personal: [], work: [], snapshots: [], cybozuUrl: "", lastBackupExport: null, pwSalt: "", pwHash: "", todoItems: null, todoChecks: {}, viewMode: "list" };
+    return { personal: [], work: [], snapshots: [], cybozuUrl: "", lastBackupExport: null, pwSalt: "", pwHash: "", todoItems: null, todoChecks: {}, viewMode: "month" };
   }
   async function hashPassword(pw, salt) {
     const msg = salt + "::" + pw;
@@ -337,8 +337,11 @@ if (typeof document !== "undefined") {
       const ymd = y + "-" + String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0");
       const es = entriesOn(ymd);
       let lines = "";
-      es.slice(0, 3).forEach(e => { lines += '<span class="' + (isDayOff(e) ? "ttl off" : "ttl " + e.kind) + '">' + esc(shortLabel(e)) + "</span>"; });
-      if (es.length > 3) lines += '<span class="ttl more">他' + (es.length - 3) + "件</span>";
+      // 月のマスでは「○時集合」の行は出さない（現場名を優先。集合だけの日は集合を出す）。
+      let shown = es.filter(e => !(e.kind === "work" && /集合/.test(e.title || "")));
+      if (!shown.length) shown = es.slice(0, 1);
+      shown.slice(0, 3).forEach(e => { lines += '<span class="' + (isDayOff(e) ? "ttl off" : "ttl " + e.kind) + '">' + esc(shortLabel(e)) + "</span>"; });
+      if (shown.length > 3) lines += '<span class="ttl more">他' + (shown.length - 3) + "件</span>";
       const wd = (startDay + d - 1) % 7;
       const dcls = wd === 0 ? " sun" : wd === 6 ? " sat" : "";
       html += '<button class="cell' + (ymd === today ? " today" : "") + (ymd === selectedDate ? " sel" : "") + (es.length === 0 ? " offday" : "") + '" data-date="' + ymd + '"><span class="dnum' + dcls + '">' + d + "</span>" + lines + "</button>";
