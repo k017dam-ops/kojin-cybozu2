@@ -163,6 +163,23 @@ function todoDeadline(group, ym) {
   return null;
 }
 
+// 注意喚起：今月分で「期限が今日以前なのに未チェック」の項目をグループごとに返す。
+// todoItems が null（TODOをまだ開いていない）場合は初期項目がすべて未チェックとして扱う。
+function todoAlerts(todoItems, todoChecks, todayYMD) {
+  const ym = todayYMD.slice(0, 7);
+  const items = Array.isArray(todoItems) ? todoItems
+    : TODO_DEFAULTS.map((d, i) => ({ id: "__def" + i, group: d.group, title: d.title }));
+  const checks = (todoChecks && todoChecks[ym]) || {};
+  const out = [];
+  for (const g of TODO_GROUPS) {
+    const dl = todoDeadline(g.key, ym);
+    if (!dl || dl > todayYMD) continue;
+    const titles = items.filter(it => it.group === g.key && !checks[it.id]).map(it => it.title);
+    if (titles.length) out.push({ group: g.key, label: g.label, deadline: dl, titles, overdue: dl < todayYMD });
+  }
+  return out;
+}
+
 /* ---------- 現場写真アプリ連携：仕事予定JSON書き出し ---------- */
 // 対象は「CSVで取り込んだ点検の仕事予定」だけ（レイナ決定 2026-11-22）。
 // - 修理は出さない（分類＋現場名に「修理」を含むものは除外。現場写真アプリVer.44側の判定順と同じ）
@@ -196,7 +213,7 @@ function buildWorkExport(work, ym) {
 
 /* ---------- ここからブラウザ専用 ---------- */
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { parseCSV, convertCybozuCSV, normDate, normTime, occursOn, CSV_HEADER, timeMin, TODO_GROUPS, TODO_DEFAULTS, nthBusinessDay, todoDeadline, buildWorkExport };
+  module.exports = { parseCSV, convertCybozuCSV, normDate, normTime, occursOn, CSV_HEADER, timeMin, TODO_GROUPS, TODO_DEFAULTS, nthBusinessDay, todoDeadline, buildWorkExport, todoAlerts };
 }
 
 if (typeof document !== "undefined") {
@@ -360,6 +377,7 @@ if (typeof document !== "undefined") {
     if (listMode) {
       renderMonthList();
       renderBackupBanner();
+      renderTodoAlert();
       // リスト表示では、開いたら今日の枠まで自動でスクロールする（今月を見ているときだけ）。
       if (viewMonth === toYMD(new Date()).slice(0, 7)) {
         const tb = document.getElementById("todayBlock");
@@ -394,6 +412,7 @@ if (typeof document !== "undefined") {
     });
     renderHomeDayList();
     renderBackupBanner();
+    renderTodoAlert();
   }
 
   /* ----- トップ画面のリスト表示（1か月分を日ごとに、現場名を全文で） ----- */
@@ -458,6 +477,18 @@ if (typeof document !== "undefined") {
       el.innerHTML = "控えファイルが古くなっています。<button id='bbBtn'>控えファイルを出す</button>";
       document.getElementById("bbBtn").addEventListener("click", exportBackup);
     } else el.style.display = "none";
+  }
+  function renderTodoAlert() {
+    const el = document.getElementById("todoAlert");
+    if (!el) return;
+    const alerts = todoAlerts(store.todoItems, store.todoChecks, toYMD(new Date()));
+    const count = alerts.reduce((n, a) => n + a.titles.length, 0);
+    document.getElementById("btnTodo").textContent = count ? "毎月TODO（期限" + count + "件）" : "毎月TODO";
+    if (!count) { el.style.display = "none"; el.innerHTML = ""; return; }
+    const lines = alerts.map(a => (a.overdue ? "期限過ぎ " : "今日が期限 ") + a.label + "：" + a.titles.join("／")).join("<br>");
+    el.style.display = "block";
+    el.innerHTML = "<strong>毎月TODOに期限の未完了が " + count + "件 あります</strong><br>" + lines + "<br><button id='taBtn'>毎月TODOを開く</button>";
+    document.getElementById("taBtn").addEventListener("click", () => { todoMonth = viewMonth; renderTodo(); show("scrTodo"); });
   }
 
   /* ----- 毎月TODO ----- */
