@@ -325,7 +325,16 @@ if (typeof document !== "undefined") {
     document.getElementById("btnViewMonth").classList.toggle("on", !listMode);
     document.getElementById("calendar").style.display = listMode ? "none" : "";
     document.getElementById("homeDayList").style.display = listMode ? "none" : "";
-    if (listMode) { renderMonthList(); renderBackupBanner(); return; }
+    if (listMode) {
+      renderMonthList();
+      renderBackupBanner();
+      // リスト表示では、開いたら今日の枠まで自動でスクロールする（今月を見ているときだけ）。
+      if (viewMonth === toYMD(new Date()).slice(0, 7)) {
+        const tb = document.getElementById("todayBlock");
+        if (tb && tb.scrollIntoView) tb.scrollIntoView({ block: "start" });
+      }
+      return;
+    }
     document.getElementById("homeList").innerHTML = "";
     const first = new Date(y, m - 1, 1);
     const startDay = first.getDay(); // 日曜=0
@@ -369,16 +378,16 @@ if (typeof document !== "undefined") {
     for (let d = 1; d <= daysInMonth; d++) {
       const ymd = y + "-" + String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0");
       const es = entriesOn(ymd);
-      if (!es.length) continue;
+      if (!es.length && ymd !== today) continue; // 今日は予定が無くても枠を出す（リストで今日を見失わないため）
       any = true;
       const wd = new Date(y, m - 1, d).getDay();
       const dcls = wd === 0 ? " sun" : wd === 6 ? " sat" : "";
-      html += '<div class="lday-block' + (dayCount % 2 ? " alt" : "") + (ymd === today ? " today" : "") + '">';
+      html += '<div class="lday-block' + (dayCount % 2 ? " alt" : "") + (ymd === today ? " today" : "") + '"' + (ymd === today ? ' id="todayBlock"' : "") + ">";
       html += '<div class="lday' + dcls + '"><span class="dnum">' + d + "</span>日（" + dows[wd] + "）" + (ymd === today ? '<span class="todaybadge">今日</span>' : "") + "</div>";
-      html += es.map(e => {
+      html += es.length ? es.map(e => {
         const time = e.startTime ? e.startTime + (e.endTime ? "〜" + e.endTime : "〜") : "時間なし";
         return '<button class="hrow ' + e.kind + (isDayOff(e) ? " off" : "") + '" data-date="' + ymd + '"><span class="htime">' + esc(time) + '</span><span class="hname">' + esc(monthLabel(e)) + '</span><span class="hkind">' + (isDayOff(e) ? "休み" : (e.kind === "work" ? "仕事" : "個人")) + "</span></button>";
-      }).join("");
+      }).join("") : '<p class="muted" style="margin:0">予定はありません。</p>';
       html += "</div>";
       dayCount++;
     }
