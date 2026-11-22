@@ -330,8 +330,8 @@ if (typeof document !== "undefined") {
       const ymd = y + "-" + String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0");
       const es = entriesOn(ymd);
       let lines = "";
-      es.slice(0, 2).forEach(e => { lines += '<span class="' + (isDayOff(e) ? "ttl off" : "ttl " + e.kind) + '">' + esc(shortLabel(e)) + "</span>"; });
-      if (es.length > 2) lines += '<span class="ttl more">他' + (es.length - 2) + "件</span>";
+      es.slice(0, 3).forEach(e => { lines += '<span class="' + (isDayOff(e) ? "ttl off" : "ttl " + e.kind) + '">' + esc(shortLabel(e)) + "</span>"; });
+      if (es.length > 3) lines += '<span class="ttl more">他' + (es.length - 3) + "件</span>";
       const wd = (startDay + d - 1) % 7;
       const dcls = wd === 0 ? " sun" : wd === 6 ? " sat" : "";
       html += '<button class="cell' + (ymd === today ? " today" : "") + (ymd === selectedDate ? " sel" : "") + (es.length === 0 ? " offday" : "") + '" data-date="' + ymd + '"><span class="dnum' + dcls + '">' + d + "</span>" + lines + "</button>";
