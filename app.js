@@ -154,13 +154,38 @@ function nthBusinessDay(ym, n) {
   return null;
 }
 
-// グループのその月の実際の期限日を "YYYY-MM-DD" で返す
+// グループのその月の実際の期限日を "YYYY-MM-DD" で返す。
+// 自由に選んだ日付は "d20" のようなキーで持ち、その月の末日を超える日は末日に丸める。
 function todoDeadline(group, ym) {
   if (group === "biz4") return nthBusinessDay(ym, 4);
   if (group === "day5") return ym + "-05";
   if (group === "day7") return ym + "-07";
   if (group === "day15") return ym + "-15";
+  const m = /^d(\d{1,2})$/.exec(group || "");
+  if (m) {
+    const [y, mo] = ym.split("-").map(Number);
+    const last = new Date(y, mo, 0).getDate();
+    const d = Math.min(Math.max(Number(m[1]), 1), last);
+    return ym + "-" + String(d).padStart(2, "0");
+  }
   return null;
+}
+
+// グループの表示名
+function todoGroupLabel(group) {
+  const g = TODO_GROUPS.find(x => x.key === group);
+  if (g) return g.label;
+  const m = /^d(\d{1,2})$/.exec(group || "");
+  return m ? Number(m[1]) + "日" : String(group || "");
+}
+
+// 表示・アラートの対象グループ：固定4グループ＋項目にある追加グループを、その月の期限日の早い順に並べる
+function todoGroupList(items, ym) {
+  const keys = TODO_GROUPS.map(g => g.key);
+  for (const it of items || []) if (it && it.group && !keys.includes(it.group)) keys.push(it.group);
+  return keys
+    .map(key => ({ key, label: todoGroupLabel(key) }))
+    .sort((a, b) => (todoDeadline(a.key, ym) || "9999-99") < (todoDeadline(b.key, ym) || "9999-99") ? -1 : 1);
 }
 
 // 注意喚起：今月分で「期限が今日以前なのに未チェック」の項目をグループごとに返す。
@@ -171,7 +196,7 @@ function todoAlerts(todoItems, todoChecks, todayYMD) {
     : TODO_DEFAULTS.map((d, i) => ({ id: "__def" + i, group: d.group, title: d.title }));
   const checks = (todoChecks && todoChecks[ym]) || {};
   const out = [];
-  for (const g of TODO_GROUPS) {
+  for (const g of todoGroupList(items, ym)) {
     const dl = todoDeadline(g.key, ym);
     if (!dl || dl > todayYMD) continue;
     const titles = items.filter(it => it.group === g.key && !checks[it.id]).map(it => it.title);
@@ -213,7 +238,7 @@ function buildWorkExport(work, ym) {
 
 /* ---------- ここからブラウザ専用 ---------- */
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { parseCSV, convertCybozuCSV, normDate, normTime, occursOn, CSV_HEADER, timeMin, TODO_GROUPS, TODO_DEFAULTS, nthBusinessDay, todoDeadline, buildWorkExport, todoAlerts };
+  module.exports = { parseCSV, convertCybozuCSV, normDate, normTime, occursOn, CSV_HEADER, timeMin, TODO_GROUPS, TODO_DEFAULTS, nthBusinessDay, todoDeadline, buildWorkExport, todoAlerts, todoGroupLabel, todoGroupList };
 }
 
 if (typeof document !== "undefined") {
@@ -508,7 +533,7 @@ if (typeof document !== "undefined") {
     const done = items.filter(it => checks[it.id]).length;
     document.getElementById("todoProgress").textContent = items.length + "件中" + done + "件完了";
     const box = document.getElementById("todoList");
-    box.innerHTML = TODO_GROUPS.map(g => {
+    box.innerHTML = todoGroupList(items, todoMonth).map(g => {
       const dl = todoDeadline(g.key, todoMonth);
       const ddt = new Date(dl + "T00:00:00");
       const due = "期限：" + (ddt.getMonth() + 1) + "月" + ddt.getDate() + "日（" + ["日", "月", "火", "水", "木", "金", "土"][ddt.getDay()] + "）";
@@ -537,7 +562,11 @@ if (typeof document !== "undefined") {
     const title = document.getElementById("tTitle").value.trim();
     if (!title) { alert("項目名を入れてください"); return; }
     ensureTodoSeeded();
-    store.todoItems.push({ id: uid(), group: document.getElementById("tGroup").value, title });
+    // 期限の選択：biz4 は営業日グループ、それ以外は日付（5/7/15は既存グループに合流、それ以外は "d日" グループ）
+    const v = document.getElementById("tGroup").value;
+    let group = v;
+    if (/^\d{1,2}$/.test(v)) group = (v === "5" || v === "7" || v === "15") ? "day" + v : "d" + v;
+    store.todoItems.push({ id: uid(), group, title });
     document.getElementById("tTitle").value = "";
     saveStore(true);
     renderTodo();
@@ -756,6 +785,14 @@ if (typeof document !== "undefined") {
     document.getElementById("btnTodoPrev").addEventListener("click", () => shiftTodoMonth(-1));
     document.getElementById("btnTodoNext").addEventListener("click", () => shiftTodoMonth(1));
     document.getElementById("btnTodoThis").addEventListener("click", () => { todoMonth = toYMD(new Date()).slice(0, 7); renderTodo(); });
+    // 期限の選択肢に「1日〜31日」を足す（biz4の営業日グループはHTML側に固定で入っている）
+    const tGroupSel = document.getElementById("tGroup");
+    for (let d = 1; d <= 31; d++) {
+      const o = document.createElement("option");
+      o.value = String(d);
+      o.textContent = "毎月" + d + "日";
+      tGroupSel.appendChild(o);
+    }
     document.getElementById("btnTodoAddItem").addEventListener("click", addTodoItem);
     document.getElementById("btnExportWork").addEventListener("click", () => { exportMonth = viewMonth; renderExport(); show("scrExport"); });
     document.getElementById("btnExportBack").addEventListener("click", () => { renderCalendar(); show("scrCal"); });
