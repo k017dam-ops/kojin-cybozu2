@@ -282,6 +282,11 @@ if (typeof document !== "undefined") {
     if (isNameOnlyWork(e)) return e.workType || e.title;
     return (e.title || "").trim() || e.workType || "";
   }
+  // 月セルの中でだけ使う短い表示名。住所などの括弧書きを除き、※以降の区別情報は残す。
+  function shortLabel(e) {
+    const t = monthLabel(e).replace(/[（(][^（）()]*[）)]/g, "").replace(/\s+/g, " ").trim();
+    return t || monthLabel(e);
+  }
   function uid() { return "e" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
   function esc(s) { return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
@@ -325,7 +330,7 @@ if (typeof document !== "undefined") {
       const ymd = y + "-" + String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0");
       const es = entriesOn(ymd);
       let lines = "";
-      es.slice(0, 2).forEach(e => { lines += '<span class="' + (isDayOff(e) ? "ttl off" : "ttl " + e.kind) + '">' + esc(monthLabel(e)) + "</span>"; });
+      es.slice(0, 2).forEach(e => { lines += '<span class="' + (isDayOff(e) ? "ttl off" : "ttl " + e.kind) + '">' + esc(shortLabel(e)) + "</span>"; });
       if (es.length > 2) lines += '<span class="ttl more">他' + (es.length - 2) + "件</span>";
       const wd = (startDay + d - 1) % 7;
       const dcls = wd === 0 ? " sun" : wd === 6 ? " sat" : "";
