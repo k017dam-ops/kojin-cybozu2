@@ -18,6 +18,7 @@ h2{font-size:17px;margin:6px 0 10px}
 .spacer{flex:1}
 button{font-size:15px;padding:9px 13px;border:1px solid #bbb;border-radius:10px;background:#fff;cursor:pointer}
 button.primary{background:#2563eb;color:#fff;border-color:#2563eb}
+button.update{background:#0f172a;color:#fff;border-color:#0f172a;font-weight:700;letter-spacing:.02em}
 button.danger{background:#fff;color:#b91c1c;border-color:#b91c1c}
 button.mini{padding:4px 9px;font-size:13px}
 main{padding:12px;max-width:640px;margin:0 auto}
@@ -121,7 +122,7 @@ input[type=file]{display:none}
       <label class="filebtn" for="csvFile">CSVを取り込む</label>
       <input type="file" id="csvFile" accept=".csv,text/csv">
       <button id="btnOpenCybozu">サイボウズを開く</button>
-      <button id="btnUpdate">更新</button>
+      <button id="btnUpdate" class="update">↻ 更新</button>
       <button id="btnSettings">設定</button>
     </div>
     <div id="importResult"></div>
