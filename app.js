@@ -205,37 +205,6 @@ function todoAlerts(todoItems, todoChecks, todayYMD) {
   return out;
 }
 
-/* ---------- 現場写真アプリ連携：仕事予定JSON書き出し ---------- */
-// 対象は「CSVで取り込んだ点検の仕事予定」だけ（レイナ決定 2026-11-22）。
-// - 修理は出さない（分類＋現場名に「修理」を含むものは除外。現場写真アプリVer.44側の判定順と同じ）
-// - 「点検」を含まないものは出さない
-// - 現場名が無い予定（title が分類名そのもの）は出さない（「保守:点検」という現場ができるのを防ぐ）
-// - 複数日の予定は日ごとに1件へ展開し、指定した月（ym = "YYYY-MM"）の日だけ出す
-// - 手入力（source が "csv" でない）予定は出さない
-function buildWorkExport(work, ym) {
-  const events = [];
-  for (const e of work || []) {
-    if (!e || e.source !== "csv") continue;
-    const site = String(e.title || "").trim();
-    const wt = String(e.workType || "").trim();
-    if (!site || site === wt) continue;
-    const t = wt + " " + site;
-    if (/修理/.test(t)) continue;
-    if (!/点検/.test(t)) continue;
-    const start = String(e.startDate || ""), end = String(e.endDate || "") || start;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) continue;
-    const d = new Date(start + "T00:00:00Z"), last = new Date(end + "T00:00:00Z");
-    if (isNaN(d) || isNaN(last) || last < d) continue;
-    for (let cur = new Date(d); cur <= last; cur.setUTCDate(cur.getUTCDate() + 1)) {
-      const ymd = cur.toISOString().slice(0, 10);
-      if (ymd.slice(0, 7) !== ym) continue;
-      events.push({ id: String(e.id || "") + "@" + ymd, date: ymd, category: wt, title: site, start: String(e.startTime || ""), end: String(e.endTime || ""), memo: String(e.memo || "") });
-    }
-  }
-  events.sort((a, b) => (a.date + " " + (a.start || "99:99")) < (b.date + " " + (b.start || "99:99")) ? -1 : 1);
-  return { format: "cybozu-work-export", version: 1, events };
-}
-
 /* ---------- 出発時刻の計算（テスト可能な純粋関数） ---------- */
 
 // 現場名の照合キー（全角半角・空白のゆれを吸収）
@@ -295,7 +264,7 @@ function destinationQuery(entry, site) {
 
 /* ---------- ここからブラウザ専用 ---------- */
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { parseCSV, convertCybozuCSV, normDate, normTime, occursOn, CSV_HEADER, timeMin, TODO_GROUPS, TODO_DEFAULTS, nthBusinessDay, todoDeadline, buildWorkExport, todoAlerts, todoGroupLabel, todoGroupList, normSiteKey, isSiteEntry, firstSiteOfDay, computeDepartureMin, fmtMin, extractAddressFromMemo, destinationQuery };
+  module.exports = { parseCSV, convertCybozuCSV, normDate, normTime, occursOn, CSV_HEADER, timeMin, TODO_GROUPS, TODO_DEFAULTS, nthBusinessDay, todoDeadline, todoAlerts, todoGroupLabel, todoGroupList, normSiteKey, isSiteEntry, firstSiteOfDay, computeDepartureMin, fmtMin, extractAddressFromMemo, destinationQuery };
 }
 
 if (typeof document !== "undefined") {
@@ -307,7 +276,6 @@ if (typeof document !== "undefined") {
   let selectedDate = toYMD(new Date());
   let editingId = null;
   let todoMonth = toYMD(new Date()).slice(0, 7); // 毎月TODOで表示中の月 "YYYY-MM"
-  let exportMonth = toYMD(new Date()).slice(0, 7); // 現場写真アプリ書き出しで表示中の月 "YYYY-MM"
 
   function emptyStore() {
     // todoItems: null = まだ初期項目を入れていない（初回にTODOを開いたとき入れる）。
@@ -636,36 +604,6 @@ if (typeof document !== "undefined") {
     renderTodo();
   }
 
-  /* ----- 現場写真アプリへ書き出し ----- */
-  function renderExport() {
-    const [y, m] = exportMonth.split("-").map(Number);
-    document.getElementById("exportTitle").textContent = y + "年" + m + "月の点検予定";
-    const data = buildWorkExport(store.work, exportMonth);
-    document.getElementById("exportCount").textContent = data.events.length
-      ? "書き出し対象 " + data.events.length + "件（点検のみ／CSVで取り込んだ分だけ）"
-      : "この月に書き出せる点検予定はありません。";
-    document.getElementById("exportList").innerHTML = data.events.map(ev =>
-      '<div class="snap">' + esc(ev.date.replace(/-/g, "/")) + "　" + esc(ev.title) + (ev.start ? "（" + esc(ev.start) + "〜）" : "") + "</div>"
-    ).join("");
-    document.getElementById("btnDoExport").disabled = !data.events.length;
-  }
-  function shiftExportMonth(delta) {
-    const [y, m] = exportMonth.split("-").map(Number);
-    exportMonth = toYMD(new Date(y, m - 1 + delta, 1)).slice(0, 7);
-    renderExport();
-  }
-  function doWorkExport() {
-    const data = buildWorkExport(store.work, exportMonth);
-    if (!data.events.length) { alert("この月に書き出せる点検予定がありません"); return; }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "cybozu-work-export-" + exportMonth.replace("-", "") + ".json";
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    alert(data.events.length + "件を書き出しました。現場写真アプリの「サイボウズ予定を取り込む」でこのファイルを選んでください。");
-  }
-
   /* ----- 日の詳細 ----- */
   function renderDay() {
     const es = entriesOn(selectedDate);
@@ -936,12 +874,6 @@ if (typeof document !== "undefined") {
       tGroupSel.appendChild(o);
     }
     document.getElementById("btnTodoAddItem").addEventListener("click", addTodoItem);
-    document.getElementById("btnExportWork").addEventListener("click", () => { exportMonth = viewMonth; renderExport(); show("scrExport"); });
-    document.getElementById("btnExportBack").addEventListener("click", () => { renderCalendar(); show("scrCal"); });
-    document.getElementById("btnExportPrev").addEventListener("click", () => shiftExportMonth(-1));
-    document.getElementById("btnExportNext").addEventListener("click", () => shiftExportMonth(1));
-    document.getElementById("btnExportThis").addEventListener("click", () => { exportMonth = toYMD(new Date()).slice(0, 7); renderExport(); });
-    document.getElementById("btnDoExport").addEventListener("click", doWorkExport);
     document.getElementById("btnBackCal").addEventListener("click", () => { renderCalendar(); show("scrCal"); });
     document.getElementById("btnDayAdd").addEventListener("click", () => openForm(null));
     document.getElementById("btnFormCancel").addEventListener("click", () => show("scrCal"));

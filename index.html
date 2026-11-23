@@ -144,7 +144,6 @@ input[type=file]{display:none}
       <button id="btnTodo">毎月TODO</button>
       <label class="filebtn" for="csvFile">CSVを取り込む</label>
       <input type="file" id="csvFile" accept=".csv,text/csv">
-      <button id="btnExportWork">現場写真へ書き出す</button>
       <button id="btnOpenCybozu">サイボウズを開く</button>
       <button id="btnUpdate" class="update">↻ 更新</button>
       <button id="btnSettings">設定</button>
@@ -225,22 +224,6 @@ input[type=file]{display:none}
     <input id="tTitle" type="text">
     <div class="toolbar"><button id="btnTodoAddItem" class="primary">項目を足す</button></div>
     <p class="muted">チェックは月ごとに保存されます。月が変わると、新しい月は空のチェックから始まります。</p>
-  </section>
-
-  <!-- 現場写真アプリへ書き出し -->
-  <section id="scrExport" class="screen" style="display:none">
-    <div class="row">
-      <button id="btnExportBack">← カレンダーへ</button>
-      <div class="spacer"></div>
-      <button id="btnExportPrev">前</button>
-      <button id="btnExportThis">今月</button>
-      <button id="btnExportNext">次</button>
-    </div>
-    <h2 id="exportTitle">点検予定の書き出し</h2>
-    <p id="exportCount" class="muted"></p>
-    <div id="exportList"></div>
-    <div class="toolbar"><button id="btnDoExport" class="primary">JSONを書き出す</button></div>
-    <p class="muted">現場写真アプリの「サイボウズ予定を取り込む」で、このファイルを選んでください。入るのは点検の予定だけです。修理と、手入力した予定は含まれません。</p>
   </section>
 
   <!-- 設定 -->
