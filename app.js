@@ -236,9 +236,66 @@ function buildWorkExport(work, ym) {
   return { format: "cybozu-work-export", version: 1, events };
 }
 
+/* ---------- 出発時刻の計算（テスト可能な純粋関数） ---------- */
+
+// 現場名の照合キー（全角半角・空白のゆれを吸収）
+function normSiteKey(title) {
+  return String(title || "").normalize("NFKC").replace(/\s+/g, " ").trim();
+}
+
+// 出発計算の対象になる「現場」の予定か。
+// 仕事予定で、現場名があり、休み・集合行・名前だけの行・分類名だけの行は除く。
+function isSiteEntry(e) {
+  if (!e || e.kind !== "work") return false;
+  const t = String(e.title || "").trim();
+  if (!t) return false;
+  if ((e.workType || "").trim() === "休み") return false;
+  if (/集合/.test(t)) return false;
+  if (t === "小林" || t === "渡部") return false;
+  if (t === String(e.workType || "").trim()) return false;
+  return true;
+}
+
+// その日の最初の現場（開始時刻が一番早い現場予定）。無ければ null。
+function firstSiteOfDay(dayEntries) {
+  const cands = (dayEntries || []).filter(e => isSiteEntry(e) && timeMin(e.startTime) !== null);
+  if (!cands.length) return null;
+  return cands.slice().sort((a, b) => timeMin(a.startTime) - timeMin(b.startTime))[0];
+}
+
+// 出発時刻（分）：開始 − 移動 − 余裕（未指定なら60分）を15分単位で切り下げ
+function computeDepartureMin(startMin, travelMin, bufferMin) {
+  if (startMin === null || startMin === undefined || travelMin === null || travelMin === undefined) return null;
+  const b = (bufferMin === null || bufferMin === undefined || bufferMin === "") ? 60 : Number(bufferMin);
+  return Math.floor((startMin - Number(travelMin) - b) / 15) * 15;
+}
+
+// 分 → "H:MM"
+function fmtMin(min) {
+  if (min === null || min === undefined) return "";
+  let v = Number(min);
+  while (v < 0) v += 1440;
+  return Math.floor(v / 60) + ":" + String(v % 60).padStart(2, "0");
+}
+
+// メモ欄の「住所：…」を取り出す（HTMLエンティティの数字参照も戻す）
+function extractAddressFromMemo(memo) {
+  const m = String(memo || "").match(/住所[:：]\s*([^\n]+)/);
+  if (!m) return "";
+  return m[1].replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n))).replace(/&amp;/g, "&").trim();
+}
+
+// 目的地の検索文字列：登録住所 → メモの住所 → 現場名の順
+function destinationQuery(entry, site) {
+  if (site && site.address) return String(site.address).trim();
+  const a = extractAddressFromMemo(entry && entry.memo);
+  if (a) return a;
+  return String((entry && entry.title) || "").trim();
+}
+
 /* ---------- ここからブラウザ専用 ---------- */
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { parseCSV, convertCybozuCSV, normDate, normTime, occursOn, CSV_HEADER, timeMin, TODO_GROUPS, TODO_DEFAULTS, nthBusinessDay, todoDeadline, buildWorkExport, todoAlerts, todoGroupLabel, todoGroupList };
+  module.exports = { parseCSV, convertCybozuCSV, normDate, normTime, occursOn, CSV_HEADER, timeMin, TODO_GROUPS, TODO_DEFAULTS, nthBusinessDay, todoDeadline, buildWorkExport, todoAlerts, todoGroupLabel, todoGroupList, normSiteKey, isSiteEntry, firstSiteOfDay, computeDepartureMin, fmtMin, extractAddressFromMemo, destinationQuery };
 }
 
 if (typeof document !== "undefined") {
@@ -256,7 +313,9 @@ if (typeof document !== "undefined") {
     // todoItems: null = まだ初期項目を入れていない（初回にTODOを開いたとき入れる）。
     // 空の配列は「本人が全部消した」状態として尊重し、初期項目を入れ直さない。
     // todoChecks: { "YYYY-MM": { itemId: true } } 月ごとのチェック状態。
-    return { personal: [], work: [], snapshots: [], cybozuUrl: "", lastBackupExport: null, pwSalt: "", pwHash: "", todoItems: null, todoChecks: {}, viewMode: "month" };
+    // sites: 現場名キー → {address, bufferMin, manualMin}。travelCache: "現場キー@日付" → {minutes, dest}。
+    // googleApiKey は控えファイル・自動控えには含めない（このiPhoneの中だけ）。
+    return { personal: [], work: [], snapshots: [], cybozuUrl: "", lastBackupExport: null, pwSalt: "", pwHash: "", todoItems: null, todoChecks: {}, viewMode: "month", homeAddress: "", googleApiKey: "", sites: {}, travelCache: {} };
   }
   async function hashPassword(pw, salt) {
     const msg = salt + "::" + pw;
@@ -324,7 +383,7 @@ if (typeof document !== "undefined") {
   }
   function saveStore(withSnapshot) {
     if (withSnapshot) {
-      store.snapshots.push({ ts: new Date().toISOString(), data: JSON.stringify({ personal: store.personal, work: store.work, todoItems: store.todoItems, todoChecks: store.todoChecks }) });
+      store.snapshots.push({ ts: new Date().toISOString(), data: JSON.stringify({ personal: store.personal, work: store.work, todoItems: store.todoItems, todoChecks: store.todoChecks, homeAddress: store.homeAddress, sites: store.sites, travelCache: store.travelCache }) });
       while (store.snapshots.length > 10) store.snapshots.shift(); // 自動控えは最新10世代
     }
     localStorage.setItem(LS_KEY, JSON.stringify(store));
@@ -613,20 +672,84 @@ if (typeof document !== "undefined") {
     document.getElementById("dayTitle").textContent = selectedDate.replace(/-/g, "/") + " の予定";
     const box = document.getElementById("dayList");
     if (!es.length) { box.innerHTML = '<p class="muted">この日の予定はありません。</p>'; return; }
+    const first = firstSiteOfDay(es); // 出発時刻はその日の最初の現場にだけ出す
     box.innerHTML = es.map(e => {
       const time = e.startTime ? e.startTime + (e.endTime ? "〜" + e.endTime : "〜") : "時間なし";
       const span = e.endDate && e.endDate !== e.startDate ? '<div class="sub">' + e.startDate + " 〜 " + e.endDate + "</div>" : "";
       const memo = e.memo ? '<div class="memo">' + esc(e.memo).replace(/\n/g, "<br>") + "</div>" : "";
+      const dep = (first && e.id === first.id) ? '<div class="depart" id="departBox"></div>' : "";
       const edit = '<button class="mini" data-edit="' + e.id + '">直す</button>' +
         (e.source === "csv" ? '<span class="tag">CSV</span>' : "");
       return '<div class="card ' + e.kind + (isDayOff(e) ? " off" : "") + '"><div class="cardhead"><span class="time">' + esc(time) + "</span>" +
         '<span class="kind">' + (isDayOff(e) ? "休み" : (e.kind === "work" ? "仕事" : "個人")) + "</span>" + edit + "</div>" +
-        '<div class="title">' + esc(dayTitle(e)) + "</div>" + span + memo + "</div>";
+        '<div class="title">' + esc(dayTitle(e)) + "</div>" + span + memo + dep + "</div>";
     }).join("");
     box.querySelectorAll("[data-edit]").forEach(b => b.addEventListener("click", () => openForm(b.getAttribute("data-edit"))));
+    if (first) updateDeparture(first, selectedDate);
+  }
+
+  // 出発時刻の非同期計算（Google Routes API・交通状況つき／手入力の移動時間があればそれを使う）
+  function departureISO(ymd, minOfDay) {
+    const p = ymd.split("-").map(Number);
+    const ms = Date.UTC(p[0], p[1] - 1, p[2]) + (Math.max(0, minOfDay || 0) - 540) * 60000; // Asia/Tokyo の壁時計→UTC
+    const t = Math.max(ms, Date.now() + 60000); // 過去の出発時刻はAPIが受けないので現在+1分に丸める
+    return new Date(t).toISOString().replace(/\.\d+Z$/, "Z");
+  }
+  async function fetchTravelMinutes(dest, depISO) {
+    const res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Goog-Api-Key": store.googleApiKey, "X-Goog-FieldMask": "routes.duration" },
+      body: JSON.stringify({ origin: { address: store.homeAddress }, destination: { address: dest }, travelMode: "DRIVE", routingPreference: "TRAFFIC_AWARE", departureTime: depISO })
+    });
+    if (!res.ok) throw new Error("routes " + res.status);
+    const j = await res.json();
+    const dur = j && j.routes && j.routes[0] && j.routes[0].duration;
+    if (!dur) throw new Error("no route");
+    return Math.round(parseInt(dur, 10) / 60);
+  }
+  async function updateDeparture(e, ymd) {
+    const box = document.getElementById("departBox");
+    if (!box) return;
+    const site = (store.sites && store.sites[normSiteKey(e.title)]) || {};
+    const buf = site.bufferMin;
+    const bufN = (buf === null || buf === undefined || buf === "") ? 60 : Number(buf);
+    const dest = destinationQuery(e, site);
+    const mapLink = store.homeAddress ? ' <a href="https://maps.apple.com/?saddr=' + encodeURIComponent(store.homeAddress) + "&daddr=" + encodeURIComponent(dest) + '&dirflg=d" target="_blank" rel="noopener">地図で確認</a>' : "";
+    const showCalc = (travel, label) => {
+      const dep = computeDepartureMin(timeMin(e.startTime), travel, buf);
+      box.innerHTML = '<span class="departMain">🚗 出発 ' + fmtMin(dep) + '</span><span class="departSub">移動 約' + travel + "分／余裕 " + bufN + "分" + (label ? "（" + label + "）" : "") + "</span>" + mapLink;
+    };
+    if (site.manualMin !== null && site.manualMin !== undefined && site.manualMin !== "") { showCalc(Number(site.manualMin), "登録した移動時間"); return; }
+    if (!store.homeAddress) { box.innerHTML = '<span class="departSub">🚗 出発は未設定です（設定で自宅住所を入れてください）</span>'; return; }
+    if (!store.googleApiKey) { box.innerHTML = '<span class="departSub">🚗 出発は未設定です（設定でGoogleキーを入れるか、この予定の「直す」で移動時間を登録してください）</span>' + mapLink; return; }
+    const cacheKey = normSiteKey(e.title) + "@" + ymd;
+    const cached = store.travelCache && store.travelCache[cacheKey];
+    if (cached && cached.dest === dest && cached.home === store.homeAddress) { showCalc(cached.minutes, "交通状況つき"); return; }
+    box.innerHTML = '<span class="departSub">🚗 出発を計算中…</span>';
+    try {
+      const startMin = timeMin(e.startTime);
+      let travel = await fetchTravelMinutes(dest, departureISO(ymd, startMin - bufN - 60));
+      const dep1 = computeDepartureMin(startMin, travel, buf);
+      try { travel = await fetchTravelMinutes(dest, departureISO(ymd, dep1)); } catch (ignore) { /* 概算の出発時刻で計算した1回目の結果を使う */ }
+      if (!store.travelCache || typeof store.travelCache !== "object") store.travelCache = {};
+      store.travelCache[cacheKey] = { minutes: travel, dest, home: store.homeAddress };
+      saveStore(false);
+      if (document.getElementById("departBox") === box) showCalc(travel, "交通状況つき");
+    } catch (err) {
+      if (document.getElementById("departBox") === box) box.innerHTML = '<span class="departSub">🚗 出発を計算できませんでした（住所が特定できないときは、この予定の「直す」で現場の住所か移動時間を登録してください）</span>' + mapLink;
+    }
   }
 
   /* ----- 追加・編集フォーム ----- */
+  // 現場ごとの登録（住所・余裕時間・移動時間の手入力）。仕事予定のときだけ出す。
+  function fillSiteFields(e) {
+    const isWork = document.getElementById("fKind").value === "work";
+    document.getElementById("siteFields").style.display = isWork ? "block" : "none";
+    const site = (e && e.kind === "work" && store.sites) ? (store.sites[normSiteKey(e.title)] || {}) : {};
+    document.getElementById("fSiteAddress").value = site.address || "";
+    document.getElementById("fSiteBuffer").value = (site.bufferMin === null || site.bufferMin === undefined) ? "" : site.bufferMin;
+    document.getElementById("fSiteManual").value = (site.manualMin === null || site.manualMin === undefined) ? "" : site.manualMin;
+  }
   function openForm(id) {
     editingId = id || null;
     const e = id ? allEntries().find(x => x.id === id) : null;
@@ -639,6 +762,7 @@ if (typeof document !== "undefined") {
     document.getElementById("fMemo").value = e ? e.memo : "";
     document.getElementById("fRepeat").value = e && e.repeat ? e.repeat.freq : "";
     document.getElementById("fRepeatUntil").value = e && e.repeat ? (e.repeat.until || "") : "";
+    fillSiteFields(e);
     document.getElementById("btnDelete").style.display = e ? "block" : "none";
     document.getElementById("formTitle").textContent = e ? "予定を直す" : "予定を足す";
     show("scrForm");
@@ -675,6 +799,16 @@ if (typeof document !== "undefined") {
       store.work = store.work.filter(x => x.id !== editingId);
     }
     (entry.kind === "work" ? store.work : store.personal).push(entry);
+    if (entry.kind === "work") {
+      // 現場ごとの登録（住所・余裕・移動時間）を現場名で保存し、次回からも使う
+      if (!store.sites || typeof store.sites !== "object") store.sites = {};
+      const numOrNull = v => { const s = String(v).trim(); return s === "" ? null : Number(s); };
+      store.sites[normSiteKey(entry.title)] = {
+        address: document.getElementById("fSiteAddress").value.trim(),
+        bufferMin: numOrNull(document.getElementById("fSiteBuffer").value),
+        manualMin: numOrNull(document.getElementById("fSiteManual").value)
+      };
+    }
     saveStore(true);
     selectedDate = start;
     renderCalendar(); renderDay(); show("scrDay");
@@ -711,7 +845,7 @@ if (typeof document !== "undefined") {
 
   /* ----- バックアップ（2段がけの外側） ----- */
   function exportBackup() {
-    const payload = JSON.stringify({ app: "kojin-cybozu2", version: 1, exportedAt: new Date().toISOString(), personal: store.personal, work: store.work, todoItems: store.todoItems, todoChecks: store.todoChecks }, null, 2);
+    const payload = JSON.stringify({ app: "kojin-cybozu2", version: 1, exportedAt: new Date().toISOString(), personal: store.personal, work: store.work, todoItems: store.todoItems, todoChecks: store.todoChecks, homeAddress: store.homeAddress, sites: store.sites, travelCache: store.travelCache }, null, 2);
     const blob = new Blob([payload], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -734,6 +868,9 @@ if (typeof document !== "undefined") {
         // 毎月TODOは、控えファイルに含まれているときだけ戻す（古い控えファイルでは今のTODOを消さない）
         if (Array.isArray(obj.todoItems)) store.todoItems = obj.todoItems;
         if (obj.todoChecks && typeof obj.todoChecks === "object") store.todoChecks = obj.todoChecks;
+        if (typeof obj.homeAddress === "string") store.homeAddress = obj.homeAddress;
+        if (obj.sites && typeof obj.sites === "object") store.sites = obj.sites;
+        if (obj.travelCache && typeof obj.travelCache === "object") store.travelCache = obj.travelCache;
         saveStore(false);
         renderCalendar(); show("scrCal");
         alert("戻しました");
@@ -745,6 +882,8 @@ if (typeof document !== "undefined") {
   /* ----- 設定・控え復元 ----- */
   function renderSettings() {
     document.getElementById("fCybozuUrl").value = store.cybozuUrl || "";
+    document.getElementById("fHomeAddress").value = store.homeAddress || "";
+    document.getElementById("fGoogleKey").value = store.googleApiKey || "";
     document.getElementById("dataCounts").textContent =
       "個人予定 " + store.personal.length + "件／仕事予定 " + store.work.length + "件／毎月TODO " + (Array.isArray(store.todoItems) ? store.todoItems.length : 0) + "項目／自動控え " + store.snapshots.length + "世代";
     const box = document.getElementById("snapshotList");
@@ -761,6 +900,9 @@ if (typeof document !== "undefined") {
       // 毎月TODOは、その控えに含まれているときだけ戻す（古い控えでは今のTODOを消さない）
       if (Array.isArray(d.todoItems)) store.todoItems = d.todoItems;
       if (d.todoChecks && typeof d.todoChecks === "object") store.todoChecks = d.todoChecks;
+      if (typeof d.homeAddress === "string") store.homeAddress = d.homeAddress;
+      if (d.sites && typeof d.sites === "object") store.sites = d.sites;
+      if (d.travelCache && typeof d.travelCache === "object") store.travelCache = d.travelCache;
       saveStore(false);
       renderCalendar(); renderSettings();
       alert("戻しました");
@@ -810,6 +952,8 @@ if (typeof document !== "undefined") {
     document.getElementById("btnSettings").addEventListener("click", () => { renderSettings(); show("scrSettings"); });
     document.getElementById("btnSettingsBack").addEventListener("click", () => { renderCalendar(); show("scrCal"); });
     document.getElementById("btnSaveUrl").addEventListener("click", () => { store.cybozuUrl = document.getElementById("fCybozuUrl").value.trim(); saveStore(false); alert("保存しました"); });
+    document.getElementById("btnSaveTravel").addEventListener("click", () => { store.homeAddress = document.getElementById("fHomeAddress").value.trim(); store.googleApiKey = document.getElementById("fGoogleKey").value.trim(); saveStore(false); alert("保存しました"); });
+    document.getElementById("fKind").addEventListener("change", () => fillSiteFields(editingId ? allEntries().find(x => x.id === editingId) : null));
     document.getElementById("btnOpenCybozu").addEventListener("click", () => {
       if (store.cybozuUrl) window.open(store.cybozuUrl, "_blank");
       else { renderSettings(); show("scrSettings"); alert("先に設定でサイボウズのアドレスを入れてください"); }

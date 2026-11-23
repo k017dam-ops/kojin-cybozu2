@@ -84,6 +84,10 @@ main{padding:12px;max-width:640px;margin:0 auto}
 .title{font-size:16px;margin-top:4px;white-space:pre-wrap;word-break:break-word}
 .sub{font-size:13px;color:#555;margin-top:2px}
 .memo{font-size:13px;color:#333;background:#f8fafc;border-radius:8px;padding:8px;margin-top:8px;word-break:break-word}
+.depart{margin-top:10px;background:#eff6ff;border-radius:8px;padding:8px 10px}
+.departMain{font-size:19px;font-weight:800;color:#1d4ed8;margin-right:8px}
+.departSub{font-size:13px;color:#334155}
+.depart a{font-size:13px}
 .muted{color:#777;font-size:14px}
 label{display:block;font-size:13px;color:#444;margin:12px 0 4px}
 input,select,textarea{width:100%;font-size:16px;padding:10px;border:1px solid #bbb;border-radius:10px;background:#fff}
@@ -176,6 +180,15 @@ input[type=file]{display:none}
     <input id="fEndTime" type="time">
     <label>メモ</label>
     <textarea id="fMemo"></textarea>
+    <div id="siteFields" style="display:none">
+      <h3>出発時刻の計算用（この現場の登録）</h3>
+      <label>現場の住所（分かれば。次回からも使われます）</label>
+      <input id="fSiteAddress" type="text">
+      <label>余裕時間（分）空欄なら60分</label>
+      <input id="fSiteBuffer" type="number" min="0" step="5">
+      <label>移動時間（分）空欄なら自動で計算</label>
+      <input id="fSiteManual" type="number" min="0" step="5">
+    </div>
     <label>繰り返し（個人予定用）</label>
     <select id="fRepeat">
       <option value="">繰り返さない</option>
@@ -238,6 +251,13 @@ input[type=file]{display:none}
     <label>サイボウズOfficeのアドレス（「サイボウズを開く」ボタンの行き先）</label>
     <input id="fCybozuUrl" type="url" placeholder="https://...">
     <div class="toolbar"><button id="btnSaveUrl">アドレスを保存</button></div>
+    <h2>出発時刻の計算</h2>
+    <label>自宅住所</label>
+    <input id="fHomeAddress" type="text" placeholder="例：横浜市都筑区○○">
+    <label>Google APIキー</label>
+    <input id="fGoogleKey" type="text" autocomplete="off">
+    <p class="muted">キーはこのiPhoneの中にだけ保存され、控えファイルには含まれません。計算のとき、自宅住所と現場の住所がGoogleへ送られます。</p>
+    <div class="toolbar"><button id="btnSaveTravel">自宅住所とキーを保存</button></div>
     <h2>控えファイル</h2>
     <div class="toolbar row">
       <button id="btnExport">控えファイルを出す</button>
