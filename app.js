@@ -232,10 +232,10 @@ function firstSiteOfDay(dayEntries) {
   return cands.slice().sort((a, b) => timeMin(a.startTime) - timeMin(b.startTime))[0];
 }
 
-// 出発時刻（分）：開始 − 移動 − 余裕（未指定なら60分）を15分単位で切り下げ
+// 出発時刻（分）：開始 − 移動 − 余裕（未指定なら75分）を15分単位で切り下げ
 function computeDepartureMin(startMin, travelMin, bufferMin) {
   if (startMin === null || startMin === undefined || travelMin === null || travelMin === undefined) return null;
-  const b = (bufferMin === null || bufferMin === undefined || bufferMin === "") ? 60 : Number(bufferMin);
+  const b = (bufferMin === null || bufferMin === undefined || bufferMin === "") ? 75 : Number(bufferMin);
   return Math.floor((startMin - Number(travelMin) - b) / 15) * 15;
 }
 
@@ -650,7 +650,7 @@ if (typeof document !== "undefined") {
     if (!box) return;
     const site = (store.sites && store.sites[normSiteKey(e.title)]) || {};
     const buf = site.bufferMin;
-    const bufN = (buf === null || buf === undefined || buf === "") ? 60 : Number(buf);
+    const bufN = (buf === null || buf === undefined || buf === "") ? 75 : Number(buf);
     const dest = destinationQuery(e, site);
     const mapLink = store.homeAddress ? ' <a href="https://maps.apple.com/?saddr=' + encodeURIComponent(store.homeAddress) + "&daddr=" + encodeURIComponent(dest) + '&dirflg=d" target="_blank" rel="noopener">地図で確認</a>' : "";
     const showCalc = (travel, label) => {
