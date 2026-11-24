@@ -43,6 +43,33 @@ function timeMin(t) {
   return Number(m[1]) * 60 + Number(m[2]);
 }
 
+// タイトルに書かれた集合時刻を読む（例「8時集合」「8時30分集合」「8時半集合」「8:00集合」）。読めなければ null
+function titleTimeMin(title) {
+  const t = String(title || "").trim();
+  let m = t.match(/^(\d{1,2})時(\d{1,2})分集合/);
+  if (m) { const h = Number(m[1]); return h <= 23 ? h * 60 + Number(m[2]) : null; }
+  m = t.match(/^(\d{1,2})時半集合/);
+  if (m) { const h = Number(m[1]); return h <= 23 ? h * 60 + 30 : null; }
+  m = t.match(/^(\d{1,2})時集合/);
+  if (m) { const h = Number(m[1]); return h <= 23 ? h * 60 : null; }
+  m = t.match(/^(\d{1,2})[:：](\d{2})集合/);
+  if (m) { const h = Number(m[1]); return h <= 23 ? h * 60 + Number(m[2]) : null; }
+  return null;
+}
+
+// 表示・並び順に使う時刻（分）：開始時刻がなければ、タイトルの集合時刻を使う。どちらも無ければ null
+function displayTimeMin(e) {
+  const s = timeMin(e.startTime);
+  return s !== null ? s : titleTimeMin(e.title);
+}
+
+// 一覧に出す時刻の文字：開始〜終了。開始が無くてもタイトルに集合時刻があればそれを出す。無ければ「時間なし」
+function timeLabel(e) {
+  if (e.startTime) return e.startTime + (e.endTime ? "〜" + e.endTime : "〜");
+  const tm = titleTimeMin(e.title);
+  return tm !== null ? fmtMin(tm) : "時間なし";
+}
+
 // "9:00:00" -> "9:00"
 function normTime(s) {
   const m = String(s || "").trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
@@ -358,9 +385,9 @@ if (typeof document !== "undefined") {
   }
   function allEntries() { return store.personal.concat(store.work); }
   function entriesOn(ymd) {
-    // スタート時間が早い順。時刻が無いものは後ろ。
+    // スタート時間が早い順。時刻が無いものは後ろ（タイトルに集合時刻があればそれで並べる）。
     return allEntries().filter(e => occursOn(e, ymd)).sort((a, b) => {
-      const ta = timeMin(a.startTime), tb = timeMin(b.startTime);
+      const ta = displayTimeMin(a), tb = displayTimeMin(b);
       return (ta === null ? 9999 : ta) - (tb === null ? 9999 : tb);
     });
   }
@@ -488,7 +515,7 @@ if (typeof document !== "undefined") {
       html += '<div class="lday-block' + (dayCount % 2 ? " alt" : "") + (ymd === today ? " today" : "") + '"' + (ymd === today ? ' id="todayBlock"' : "") + ">";
       html += '<div class="lday' + dcls + '"><span class="dnum">' + d + "</span>日（" + dows[wd] + "）" + (ymd === today ? '<span class="todaybadge">今日</span>' : "") + "</div>";
       html += es.length ? es.map(e => {
-        const time = e.startTime ? e.startTime + (e.endTime ? "〜" + e.endTime : "〜") : "時間なし";
+        const time = timeLabel(e);
         return '<button class="hrow ' + e.kind + (isDayOff(e) ? " off" : "") + '" data-date="' + ymd + '"><span class="htime">' + esc(time) + '</span><span class="hname">' + esc(monthLabel(e)) + '</span><span class="hkind">' + (isDayOff(e) ? "休み" : (e.kind === "work" ? "仕事" : "個人")) + "</span></button>";
       }).join("") : '<p class="muted" style="margin:0">予定はありません。</p>';
       html += "</div>";
@@ -510,7 +537,7 @@ if (typeof document !== "undefined") {
       html += '<p class="emptyoff">この日の予定はありません。</p>';
     } else {
       html += es.map(e => {
-        const time = e.startTime ? e.startTime + (e.endTime ? "〜" + e.endTime : "〜") : "時間なし";
+        const time = timeLabel(e);
         return '<button class="hrow ' + e.kind + (isDayOff(e) ? " off" : "") + '"><span class="htime">' + esc(time) + '</span><span class="hname">' + esc(monthLabel(e)) + '</span><span class="hkind">' + (isDayOff(e) ? "休み" : (e.kind === "work" ? "仕事" : "個人")) + "</span></button>";
       }).join("");
     }
@@ -612,7 +639,7 @@ if (typeof document !== "undefined") {
     if (!es.length) { box.innerHTML = '<p class="muted">この日の予定はありません。</p>'; return; }
     const first = firstSiteOfDay(es); // 出発時刻はその日の最初の現場にだけ出す
     box.innerHTML = es.map(e => {
-      const time = e.startTime ? e.startTime + (e.endTime ? "〜" + e.endTime : "〜") : "時間なし";
+      const time = timeLabel(e);
       const span = e.endDate && e.endDate !== e.startDate ? '<div class="sub">' + e.startDate + " 〜 " + e.endDate + "</div>" : "";
       const memo = e.memo ? '<div class="memo">' + esc(e.memo).replace(/\n/g, "<br>") + "</div>" : "";
       const dep = (first && e.id === first.id) ? '<div class="depart" id="departBox"></div>' : "";
